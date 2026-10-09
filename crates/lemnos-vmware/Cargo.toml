@@ -1,0 +1,11 @@
+# Low priority: many organizations are migrating away from VMware since
+# Broadcom's licensing changes, so other backends come first.
+
+[package]
+name = "lemnos-vmware"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+lemnos-core.workspace = true
+

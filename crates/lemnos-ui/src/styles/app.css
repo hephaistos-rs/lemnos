@@ -1,0 +1,420 @@
+@import "tailwindcss";
+
+/* ==========================================================================
+   Theme
+   Every `--color-<name>` becomes classes like `bg-<name>`, `text-<name>`, ...
+   (ported from the old project's tailwind.config.js)
+   ========================================================================== */
+@theme {
+  /* Drop Tailwind's default palette (gray, indigo, white, ...) so only the
+     colors below exist. Unknown color classes then generate nothing. */
+  --color-*: initial;
+
+  /* Loaded by the `DM_SANS` font in app.rs. */
+  --font-sans: "DM Sans", sans-serif;
+
+  /*
+   * 400/500 are darker shades for solid fills behind white text; the 300s are
+   * too light for that. Success and warning get dark text instead.
+   */
+  --color-primary-50: #e9f4fa;
+  --color-primary-100: #d4e8f5;
+  --color-primary-200: #7dbbe1;
+  --color-primary-300: #278ecd;
+  --color-primary-400: #1f72a4;
+  --color-primary-500: #195c85;
+
+  --color-success-50: #e8fbed;
+  --color-success-100: #d0f8db;
+  --color-success-200: #24da56;
+  --color-success-300: #0cbd3e;
+
+  --color-danger-50: #faeae9;
+  --color-danger-100: #f8dedd;
+  --color-danger-200: #e27c75;
+  --color-danger-300: #d23228;
+  --color-danger-400: #b22a22;
+  --color-danger-500: #93231c;
+
+  --color-warning-50: #fff9e8;
+  --color-warning-100: #fff2d1;
+  --color-warning-200: #ffc634;
+  --color-warning-300: #edaf11;
+
+  /* Neutral greys, light (50) to dark (950). */
+  --color-secondary-50: #ffffff;
+  --color-secondary-100: #e5e4ed;
+  --color-secondary-200: #c2c1cc;
+  --color-secondary-300: #aaa9b2;
+  --color-secondary-400: #868491;
+  --color-secondary-500: #4d4e57;
+  --color-secondary-600: #3c3c41;
+  --color-secondary-700: #2b2b2f;
+  --color-secondary-800: #16171a;
+  --color-secondary-900: #0c0c0d;
+  --color-secondary-950: #000000;
+
+  /* Use as `animate-fade-in`. */
+  --animate-fade-in: fade-in 1s;
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+}
+
+/* ==========================================================================
+   Base
+   ========================================================================== */
+@layer base {
+  /* Makes scrollbars, <select> menus and date pickers dark too. */
+  html {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-secondary-800 text-secondary-200 text-base;
+  }
+  body:has(.requires-no-scroll) {
+    overflow: hidden;
+  }
+}
+
+@utility container {
+  @apply w-full px-4 mx-auto md:max-w-3xl lg:max-w-5xl xl:max-w-7xl;
+}
+
+/* ==========================================================================
+   Tones
+   One set of variables per color. Buttons, alerts and badges only read these
+   variables, so each component is written once instead of once per color.
+   ========================================================================== */
+@layer components {
+  /* Default tone, so `.button` etc. without a tone class still look right.
+     `:where()` has zero specificity, so any tone class below overrides it. */
+  :where(.button, .alert, .badge),
+  :is(.button-secondary, .alert-secondary, .badge-secondary) {
+    --tone: var(--color-secondary-600);        /* solid fill */
+    --tone-hover: var(--color-secondary-500);  /* fill on hover */
+    --tone-accent: var(--color-secondary-400); /* dividers, borders on a fill */
+    --tone-on: var(--color-secondary-100);     /* strong text on a fill */
+    --tone-on-muted: var(--color-secondary-200); /* body text on a fill */
+    --tone-text: var(--color-secondary-300);   /* text on the dark page background */
+  }
+
+  /* Dark fills with light text. */
+  :is(.button-primary, .alert-primary, .badge-primary) {
+    --tone: var(--color-primary-400);
+    --tone-hover: var(--color-primary-500);
+    --tone-accent: var(--color-primary-300);
+    --tone-on: var(--color-primary-50);
+    --tone-on-muted: var(--color-primary-50);
+    --tone-text: var(--color-primary-300);
+  }
+  :is(.button-danger, .alert-danger, .badge-danger) {
+    --tone: var(--color-danger-400);
+    --tone-hover: var(--color-danger-500);
+    --tone-accent: var(--color-danger-300);
+    --tone-on: var(--color-danger-50);
+    --tone-on-muted: var(--color-danger-100);
+    --tone-text: var(--color-danger-200);
+  }
+
+  /* Bright fills with dark text. */
+  :is(.button-success, .alert-success, .badge-success) {
+    --tone: var(--color-success-300);
+    --tone-hover: var(--color-success-200);
+    --tone-accent: var(--color-success-200);
+    --tone-on: var(--color-secondary-900);
+    --tone-on-muted: var(--color-secondary-800);
+    --tone-text: var(--color-success-300);
+  }
+  :is(.button-warning, .alert-warning, .badge-warning) {
+    --tone: var(--color-warning-300);
+    --tone-hover: var(--color-warning-200);
+    --tone-accent: var(--color-warning-200);
+    --tone-on: var(--color-secondary-900);
+    --tone-on-muted: var(--color-secondary-800);
+    --tone-text: var(--color-warning-300);
+  }
+}
+
+/* ==========================================================================
+   Atoms
+   ========================================================================== */
+@layer components {
+  .header {
+    @apply text-xl font-medium text-secondary-300 mb-4;
+  }
+
+  /* Plain text link in a navigation bar */
+  .nav-link {
+    @apply px-3 py-2 rounded-md text-sm font-medium text-secondary-300
+      transition duration-300 hover:bg-secondary-700 hover:text-secondary-50;
+  }
+
+  /* Button: `.button .button-<tone>`, optionally `.outlined` */
+  .button {
+    @apply px-3 py-1.5 font-medium cursor-pointer
+      rounded-md border-2 border-transparent
+      outline-4 outline-transparent
+      transition duration-300
+      bg-(--tone) text-(--tone-on);
+  }
+  .button.outlined {
+    @apply bg-transparent border-(--tone) text-(--tone-text);
+  }
+  .button:is(:hover, :focus-visible, :active) {
+    @apply bg-(--tone-hover) border-(--tone-hover) text-(--tone-on);
+  }
+  /* Focus ring only for keyboard users, not after a mouse click. */
+  .button:focus-visible {
+    @apply outline-(--tone)/50;
+  }
+  .button:is([disabled], .disabled) {
+    @apply bg-secondary-600 text-secondary-400 cursor-not-allowed pointer-events-none;
+  }
+  .button.outlined:is([disabled], .disabled) {
+    @apply border-secondary-600;
+  }
+
+  /* Field label */
+  .label {
+    @apply text-sm text-secondary-400 cursor-pointer;
+  }
+
+  /* Text field: `.input-wrapper` around an input/textarea/select, optional leading svg icon */
+  .input-wrapper {
+    @apply relative flex items-center;
+  }
+  .input-wrapper > :is(input, textarea, select) {
+    @apply px-3 py-2 rounded-md w-full
+      bg-secondary-600 text-secondary-100
+      border-2 border-secondary-400 outline-none
+      transition duration-300;
+  }
+  .input-wrapper > :is(input, textarea, select):is(:hover, :focus, :active) {
+    @apply border-secondary-300;
+  }
+  .input-wrapper > :is(input, textarea, select):is(:focus, :active) {
+    @apply bg-secondary-500;
+  }
+  .input-wrapper > :is(input, textarea)::placeholder {
+    @apply text-secondary-300;
+  }
+  .input-wrapper > :is(input, textarea, select)[disabled] {
+    @apply border-transparent pointer-events-none text-secondary-300;
+  }
+  .input-wrapper > :is(input, textarea)[disabled]::placeholder {
+    @apply text-secondary-400;
+  }
+  .input-wrapper > svg {
+    @apply absolute left-4 text-secondary-400 pointer-events-none;
+  }
+  .input-wrapper > svg ~ :is(input, textarea, select) {
+    @apply pl-10;
+  }
+  .input-wrapper.input-error > :is(input, textarea, select) {
+    @apply border-danger-300;
+  }
+  .input-wrapper.input-error > svg {
+    @apply text-danger-200;
+  }
+
+  /* Toggle switch: `.toggler > input + .slider > .indicator` */
+  .toggler {
+    @apply relative;
+  }
+  .toggler > input {
+    @apply absolute w-full h-full opacity-0 z-10 cursor-pointer;
+  }
+  .toggler > input:disabled {
+    @apply pointer-events-none;
+  }
+  .toggler .slider {
+    @apply w-10 h-6 p-0.5 rounded-full bg-secondary-600 border-2 border-transparent transition duration-300;
+  }
+  .toggler > .slider > .indicator {
+    @apply relative left-0 block h-full aspect-square rounded-full bg-secondary-200 transition-all duration-300;
+  }
+  .toggler > input:hover ~ .slider {
+    @apply bg-secondary-500;
+  }
+  .toggler > input:focus-visible ~ .slider {
+    @apply border-primary-300;
+  }
+  .toggler > input:checked ~ .slider {
+    @apply bg-primary-300;
+  }
+  .toggler > input:checked:hover ~ .slider {
+    @apply bg-primary-200;
+  }
+  .toggler > input:checked ~ .slider > .indicator {
+    @apply left-4 bg-secondary-50;
+  }
+  .toggler > input:disabled ~ .slider > .indicator {
+    @apply bg-secondary-400;
+  }
+  .toggler > input:checked:disabled ~ .slider {
+    @apply bg-secondary-600! pointer-events-none;
+  }
+
+  /* Radio and checkbox: `label.radio-input > input + .checkmark` (same for `.checkbox-input`) */
+  :is(.radio-input, .checkbox-input) {
+    @apply relative flex items-center gap-x-1 cursor-pointer;
+  }
+  /* Visually hidden but still focusable with the keyboard. */
+  :is(.radio-input, .checkbox-input) input {
+    @apply absolute w-0 h-0 opacity-0;
+  }
+  :is(.radio-input, .checkbox-input) .checkmark {
+    @apply block w-5 h-5 bg-secondary-600 border-2 border-secondary-500 transition duration-300;
+  }
+  :is(.radio-input, .checkbox-input):is(:hover, :active) .checkmark {
+    @apply border-secondary-400;
+  }
+  :is(.radio-input, .checkbox-input):active .checkmark,
+  :is(.radio-input, .checkbox-input) input:focus-visible ~ .checkmark {
+    @apply border-primary-200;
+  }
+  :is(.radio-input, .checkbox-input) .checkmark::before {
+    @apply absolute content-[''] opacity-0 transition duration-300;
+  }
+  :is(.radio-input, .checkbox-input) input:checked ~ .checkmark {
+    @apply bg-primary-300 border-primary-300;
+  }
+  :is(.radio-input, .checkbox-input):hover input:checked ~ .checkmark {
+    @apply bg-primary-200;
+  }
+
+  .radio-input .checkmark {
+    @apply rounded-full;
+  }
+  .radio-input .checkmark::before {
+    @apply block w-2 h-2 top-2 left-1.5 rounded-full;
+  }
+  .radio-input input:checked ~ .checkmark::before {
+    @apply bg-secondary-50 opacity-100;
+  }
+
+  .checkbox-input .checkmark {
+    @apply rounded-md;
+  }
+  .checkbox-input .checkmark::before {
+    @apply w-1.5 h-2.5 left-1.5 top-1.5 border-0 border-b-2 border-r-2 rotate-45;
+  }
+  .checkbox-input input:checked ~ .checkmark::before {
+    @apply border-secondary-50 opacity-100;
+  }
+
+  /* Tooltip with a small arrow; `.tooltip-bottom` points the arrow up */
+  .tooltip {
+    @apply absolute z-40 max-w-md px-2 py-1 rounded-md bg-secondary-500 pointer-events-none transition-opacity duration-300;
+  }
+  .tooltip::after {
+    @apply content-[''] absolute -bottom-2 left-2 border-0 border-l-8 border-r-8 border-t-8 border-x-transparent border-y-secondary-500;
+  }
+  .tooltip.tooltip-bottom::after {
+    @apply border-t-0 border-b-8 bottom-full;
+  }
+
+  /* Badge: `.badge .badge-<tone>`, optionally `.badge-soft` or `.badge-outlined` */
+  .badge {
+    @apply inline-block px-2 py-1 text-sm font-medium rounded border border-transparent
+      bg-(--tone) text-(--tone-on);
+  }
+  .badge.badge-soft {
+    @apply bg-(--tone)/20 text-(--tone-text);
+  }
+  .badge.badge-outlined {
+    @apply bg-transparent border-(--tone) text-(--tone-text);
+  }
+}
+
+/* ==========================================================================
+   Molecules
+   ========================================================================== */
+@layer components {
+  /* Alert: `.alert .alert-<tone>`, optionally `.alert-soft` */
+  .alert {
+    @apply w-full flex items-center justify-between rounded-md py-3 px-4
+      bg-(--tone) text-(--tone-on-muted);
+  }
+  .alert :is(.alert-body, .alert-body b, .alert-actions) {
+    @apply flex items-center gap-x-2;
+  }
+  .alert .alert-body :is(svg, b) {
+    @apply text-(--tone-on);
+  }
+  .alert .alert-body b::after {
+    @apply block w-3 h-0.5 content-[''];
+  }
+  .alert .alert-button {
+    @apply px-2 py-1 border-2 border-(--tone-accent) rounded-full transition duration-300;
+  }
+  .alert .alert-button:hover {
+    @apply bg-secondary-50/20;
+  }
+  .alert .alert-close {
+    @apply relative ml-2 p-1;
+  }
+  .alert .alert-close svg {
+    @apply text-xl;
+  }
+  .alert .alert-close::before {
+    @apply absolute -left-2 block w-0.5 h-6 content-[''];
+  }
+  .alert .alert-body b::after,
+  .alert .alert-close::before {
+    @apply bg-(--tone-accent);
+  }
+
+  .alert.alert-soft {
+    @apply bg-(--tone)/10 text-(--tone-text);
+  }
+  .alert.alert-soft .alert-body :is(svg, b) {
+    @apply text-(--tone-text);
+  }
+  .alert.alert-soft .alert-body b::after,
+  .alert.alert-soft .alert-close::before {
+    @apply bg-(--tone-text);
+  }
+  .alert.alert-soft .alert-button {
+    @apply border-(--tone-text);
+  }
+
+  /* Dropdown menu with a small arrow on top */
+  .dropdown {
+    @apply absolute flex flex-col gap-y-1 max-w-xs p-1 rounded-lg bg-secondary-600 transition-opacity duration-300;
+  }
+  .dropdown::after {
+    @apply content-[''] absolute -top-2 left-2 border-0 border-l-8 border-r-8 border-b-8 border-x-transparent border-y-secondary-600;
+  }
+  .dropdown > :is(a, button) {
+    @apply min-w-28 text-left cursor-pointer;
+  }
+
+  /* Table card: `.table > .table-header + table` */
+  .table {
+    @apply w-full rounded-lg bg-secondary-700;
+  }
+  .table .table-header {
+    @apply flex items-center justify-between px-5 pt-4;
+  }
+  .table table {
+    @apply w-full;
+  }
+  .table tr > :first-child {
+    @apply pl-5;
+  }
+  .table tr > :last-child {
+    @apply pr-5;
+  }
+  .table :is(thead tr, tbody tr:not(:last-child)) {
+    @apply border-b border-secondary-500;
+  }
+  .table th {
+    @apply py-2 text-left text-sm font-medium text-secondary-300;
+  }
+  .table td {
+    @apply py-2;
+  }
+}
