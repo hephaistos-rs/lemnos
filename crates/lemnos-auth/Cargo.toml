@@ -1,0 +1,6 @@
+[package]
+name = "lemnos-auth"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]

@@ -1,0 +1,8 @@
+{
+  "css.customData": [".vscode/tailwind.json"],
+
+  // Tailwind CSS IntelliSense: suggest classes inside Rust `view!` markup, and
+  // read our theme so it offers `secondary-*`/`primary-*` instead of defaults.
+  "tailwindCSS.includeLanguages": { "rust": "html" },
+  "tailwindCSS.experimental.configFile": "crates/lemnos-ui/src/styles/app.css"
+}

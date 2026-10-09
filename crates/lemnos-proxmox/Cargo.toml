@@ -1,0 +1,8 @@
+[package]
+name = "lemnos-proxmox"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+lemnos-core.workspace = true
+tokio = { workspace = true, features = ["sync"] }

@@ -1,0 +1,15 @@
+[package]
+name = "lemnos-ui"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+lemnos-core.workspace = true
+lemnos-auth.workspace = true
+lemnos-proxmox.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+topcoat = { version = "0.10.0", features = ["tailwind", "font-fontsource"] }
+
+# Dependencies for build.rs, which runs before this crate is compiled.
+[build-dependencies]
+topcoat = { version = "0.10.0", default-features = false, features = ["tailwind"] }

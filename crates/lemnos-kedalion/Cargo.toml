@@ -1,0 +1,7 @@
+[package]
+name = "lemnos-kedalion"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+lemnos-core.workspace = true

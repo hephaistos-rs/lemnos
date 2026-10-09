@@ -1,0 +1,38 @@
+[workspace]
+# Virtual workspaces have no package edition to infer this from, so set it explicitly.
+resolver = "3"
+members = [
+    "crates/lemnos-core",
+    "crates/lemnos-auth",
+    "crates/lemnos-ui",
+    "crates/lemnos-proxmox",
+    "crates/lemnos-vmware",
+    # kedalion is our own eye in the sky sorta say, 
+    # but we still need to be able to interact with it...
+    "crates/lemnos-kedalion",
+]
+
+# Shared metadata that member crates can inherit with `<key>.workspace = true`.
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+
+# Shared dependency versions. Members opt in with `<dep>.workspace = true`.
+[workspace.dependencies]
+tokio = "1.53.2"
+    
+# Our own crates, so members can write `lemnos-core.workspace = true`.
+lemnos-core = { path = "crates/lemnos-core" }
+lemnos-auth = { path = "crates/lemnos-auth" }
+lemnos-proxmox = { path = "crates/lemnos-proxmox" }
+lemnos-vmware = { path = "crates/lemnos-vmware" }
+lemnos-kedalion = { path = "crates/lemnos-kedalion" }
+
+
+# No top directory stff here, maybe later.
+# [package]
+# name = "lemnos"
+# version.workspace = true
+# edition.workspace = true
+# 
+# [dependencies]
