@@ -10,7 +10,7 @@ use sqlx::Row;
 use crate::{Database, Dialect};
 
 /// Step N (counting from 1) takes the schema from version N-1 to N.
-const MIGRATIONS: &[fn(Dialect) -> Vec<String>] = &[accounts_and_sessions];
+const MIGRATIONS: &[fn(Dialect) -> Vec<String>] = &[accounts_and_sessions, unique_passkeys];
 
 fn accounts_and_sessions(dialect: Dialect) -> Vec<String> {
     // MariaDB/MySQL compare text ignoring case unless told otherwise. IDs
@@ -64,6 +64,25 @@ fn accounts_and_sessions(dialect: Dialect) -> Vec<String> {
         }
     })
     .collect()
+}
+
+/// A passkey belongs to exactly one account, and the database enforces it.
+fn unique_passkeys(dialect: Dialect) -> Vec<String> {
+    let mut statements = Vec::new();
+    if dialect == Dialect::MySql {
+        // MariaDB can't index a TEXT column in full, and a multi-byte
+        // VARCHAR this long is over its index size limit. The IDs are hex,
+        // so a single-byte character set fits. 2046 = the longest ID
+        // WebAuthn allows (1023 bytes), in hex.
+        statements.push(
+            "ALTER TABLE passkeys MODIFY credential_id
+             VARCHAR(2046) CHARACTER SET ascii COLLATE ascii_bin NOT NULL"
+                .to_owned(),
+        );
+    }
+    statements
+        .push("CREATE UNIQUE INDEX passkeys_credential_id ON passkeys (credential_id)".to_owned());
+    statements
 }
 
 pub(crate) async fn migrate(database: &Database) -> Result<(), sqlx::Error> {

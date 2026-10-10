@@ -46,6 +46,14 @@ fn refuse_error(error: &AuthError) -> Reply {
             StatusCode::BAD_REQUEST,
             "No passkey is registered for that username.",
         ),
+        AuthError::Passkey(PasskeyError::AlreadyRegistered) => refuse(
+            StatusCode::CONFLICT,
+            "That passkey is already registered to another account.",
+        ),
+        AuthError::Passkey(PasskeyError::WrongUser) => refuse(
+            StatusCode::FORBIDDEN,
+            "That passkey belongs to a different account.",
+        ),
         other => {
             eprintln!("passkey request failed: {other:?}");
             refuse(

@@ -211,8 +211,12 @@ async fn exercise<S: Store>(store: &S) {
 
     // --- passkeys ---
     assert!(store.passkeys(alice.id).await.unwrap().is_empty());
+    // Unique per run (credential IDs are unique across all users), with
+    // bytes that would break if the hex round trip were wrong.
+    let run: [u8; 8] = rand::random();
+    let credential_id = |id: u8| [&[id, 0, 255, 16][..], &run[..]].concat();
     let passkey = |id: u8, label: &str, data: &str| PasskeyRecord {
-        credential_id: vec![id, 0, 255, 16],
+        credential_id: credential_id(id),
         label: label.into(),
         data: data.into(),
     };
@@ -232,12 +236,18 @@ async fn exercise<S: Store>(store: &S) {
     let mut passkeys = store.passkeys(alice.id).await.unwrap();
     passkeys.sort_by(|a, b| a.credential_id.cmp(&b.credential_id));
     assert_eq!(passkeys.len(), 2);
-    assert_eq!(passkeys[0].credential_id, vec![1, 0, 255, 16]);
+    assert_eq!(passkeys[0].credential_id, credential_id(1));
     assert_eq!(passkeys[0].data, "{\"n\":3}");
     assert_eq!(passkeys[1].label, "Phone");
     assert!(store.passkeys(bob.id).await.unwrap().is_empty());
+    // A credential ID belongs to one account only.
+    assert!(matches!(
+        store.save_passkey(bob.id, passkey(2, "Stolen", "{}")).await,
+        Err(StoreError::Conflict)
+    ));
+    assert!(store.passkeys(bob.id).await.unwrap().is_empty());
     store
-        .delete_passkey(alice.id, &[1, 0, 255, 16])
+        .delete_passkey(alice.id, &credential_id(1))
         .await
         .unwrap();
     assert_eq!(store.passkeys(alice.id).await.unwrap().len(), 1);

@@ -36,7 +36,7 @@ pub use webauthn_rs::prelude::{
 
 use crate::{
     auth::{Auth, AuthError, Authenticated, Method, STEP_MAX_AGE},
-    store::{PasskeyRecord, Store},
+    store::{PasskeyRecord, Store, StoreError},
     unix_now,
     user::{User, UserId, Username},
 };
@@ -62,6 +62,10 @@ fn default_rp_name() -> String {
 pub enum PasskeyError {
     #[error("this account has no passkeys")]
     NoPasskeys,
+    #[error("this passkey is already registered to another account")]
+    AlreadyRegistered,
+    #[error("this passkey was created for a different account")]
+    WrongUser,
     #[error("the passkey could not be verified")]
     Webauthn(#[from] WebauthnError),
     #[error("a stored passkey could not be read")]
@@ -170,7 +174,13 @@ impl<S: Store> Auth<S> {
             credential_id: record.credential_id.clone(),
             label: record.label.clone(),
         };
-        self.store.save_passkey(state.user, record).await?;
+        self.store
+            .save_passkey(state.user, record)
+            .await
+            .map_err(|error| match error {
+                StoreError::Conflict => PasskeyError::AlreadyRegistered.into(),
+                other => AuthError::from(other),
+            })?;
         Ok(info)
     }
 
@@ -224,6 +234,17 @@ impl<S: Store> Auth<S> {
             .webauthn()?
             .finish_passkey_authentication(response, &state.state)
             .map_err(PasskeyError::from)?;
+
+        // Devices that remember who a passkey was made for send that back.
+        // If it names someone else, the stored key ended up on the wrong
+        // account (a copied row, say) and must not open this one. Devices
+        // that send nothing are only held to the signature check above.
+        if response
+            .get_user_unique_id()
+            .is_some_and(|handle| handle != user_handle(state.user).as_bytes())
+        {
+            return Err(PasskeyError::WrongUser.into());
+        }
 
         // Devices count their uses, which lets a cloned key be noticed. Save
         // the new count on the passkey that was just used.

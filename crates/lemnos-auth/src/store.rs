@@ -151,7 +151,10 @@ pub trait Store: Send + Sync + 'static {
         &self,
         user: UserId,
     ) -> impl Future<Output = StoreResult<Vec<PasskeyRecord>>> + Send;
-    /// Adds the passkey, or replaces the one with the same credential ID.
+    /// Adds the passkey, or replaces the user's own one with the same
+    /// credential ID. Fails with [`StoreError::Conflict`] if that ID already
+    /// belongs to another user: a passkey is one device's key, so it must
+    /// never open two accounts.
     fn save_passkey(
         &self,
         user: UserId,
@@ -326,6 +329,16 @@ impl Store for MemoryStore {
 
     async fn save_passkey(&self, user: UserId, passkey: PasskeyRecord) -> StoreResult<()> {
         let mut inner = self.lock();
+        let taken = inner.users.iter().any(|(owner, account)| {
+            *owner != user
+                && account
+                    .passkeys
+                    .iter()
+                    .any(|existing| existing.credential_id == passkey.credential_id)
+        });
+        if taken {
+            return Err(StoreError::Conflict);
+        }
         let passkeys = &mut inner.account(user)?.passkeys;
         match passkeys
             .iter_mut()
