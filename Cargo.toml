@@ -11,6 +11,8 @@ members = [
     # but we still need to be able to interact with it...
     "crates/lemnos-kedalion",
 ]
+# Allows for the usage of topcoat dev at the root of the project.
+default-members = ["crates/lemnos-ui"]
 
 # Shared metadata that member crates can inherit with `<key>.workspace = true`.
 [workspace.package]

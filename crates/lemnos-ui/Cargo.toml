@@ -5,10 +5,15 @@ edition.workspace = true
 
 [dependencies]
 lemnos-core.workspace = true
-lemnos-auth.workspace = true
+# Every sign-in method is compiled in; which ones are offered is decided at
+# runtime by the config file (see `src/config.rs`).
+lemnos-auth = { workspace = true, features = ["ldap", "passkeys", "saml"] }
 lemnos-proxmox.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 topcoat = { version = "0.10.0", features = ["tailwind", "font-fontsource"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
 
 # Dependencies for build.rs, which runs before this crate is compiled.
 [build-dependencies]

@@ -31,7 +31,7 @@ pub async fn nav_bar(cx: &Cx) -> Result<impl View> {
             </div>
             <div class="flex items-center gap-x-2">
                 if let Some(user) = &user {
-                    <span class="text-sm text-secondary-300">(&user.name)</span>
+                    <a href=(href!(crate::app::account::page)) class="nav-link">(&user.name)</a>
                     // A form, not a link: signing out changes state, so it must be a POST.
                     <form method="post" action=(href!(crate::app::auth::sign_out::sign_out))>
                         <button type="submit" class="button">"Sign out"</button>

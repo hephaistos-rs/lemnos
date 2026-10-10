@@ -1,0 +1,40 @@
+# Dex: a small OpenID Connect provider, for testing Lemnos' OIDC and generic
+# OAuth2 sign-in. Development only: everything here is public knowledge.
+#
+# Sign in as alice@lemnos.test or bob@lemnos.test, password "password".
+
+# Lemnos runs on the host during development, so both it and the browser
+# reach Dex as localhost.
+issuer: http://localhost:5556/dex
+
+storage:
+  type: memory
+
+web:
+  http: 0.0.0.0:5556
+
+oauth2:
+  responseTypes: [code]
+  # Skip the "grant access?" page after signing in.
+  skipApprovalScreen: true
+
+staticClients:
+  - id: lemnos
+    name: Lemnos
+    secret: lemnos-dev-secret
+    redirectURIs:
+      # One per Lemnos provider id: the OIDC one and the generic OAuth2 one.
+      - http://localhost:3000/auth/sso/dex/callback
+      - http://localhost:3000/auth/sso/dex-oauth/callback
+
+enablePasswordDB: true
+staticPasswords:
+  # Both hashes are bcrypt of "password".
+  - email: alice@lemnos.test
+    username: alice
+    userID: 0a1b2c3d-0000-4000-8000-00000000a11c
+    hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"
+  - email: bob@lemnos.test
+    username: bob
+    userID: 0a1b2c3d-0000-4000-8000-0000000000b0
+    hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"

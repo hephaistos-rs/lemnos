@@ -1,0 +1,65 @@
+# Lemnos configuration for local development, matching compose.dev.yml.
+#
+#   docker compose -f compose.dev.yml up -d --wait
+#   cp lemnos.dev.toml lemnos.toml      (once; lemnos.toml is git-ignored)
+#   topcoat dev -p lemnos-ui
+#
+# Lemnos reads `lemnos.toml` from the directory it is started in, or the file
+# named by the LEMNOS_CONFIG environment variable.
+#
+# Then open http://localhost:3000 (use "localhost", not 127.0.0.1: passkeys
+# and the SSO redirect URLs are tied to that name).
+#
+# Everything in here is a test value. Do not reuse any of it.
+
+# Let anyone create a local account on the sign-up page.
+allow_sign_up = true
+
+# Providers whose users get a Lemnos account the first time they sign in.
+# Leave a provider out to only admit users who were linked beforehand.
+auto_provision = ["ldap", "dex", "dex-oauth", "saml"]
+
+[passkeys]
+rp_id = "localhost"
+origin = "http://localhost:3000"
+
+# Users: alice / alice-password, bob / bob-password
+[ldap]
+url = "ldap://localhost:3890"
+danger_allow_plaintext = true
+bind_dn = "uid=admin,ou=people,dc=lemnos,dc=test"
+bind_password = "admin-password"
+user_base_dn = "ou=people,dc=lemnos,dc=test"
+
+# Users: alice@lemnos.test / bob@lemnos.test, password "password"
+[[sso]]
+id = "dex"
+display_name = "Dex (OpenID Connect)"
+type = "oidc"
+issuer_url = "http://localhost:5556/dex"
+client_id = "lemnos"
+client_secret = "lemnos-dev-secret"
+redirect_url = "http://localhost:3000/auth/sso/dex/callback"
+
+# The same Dex server, used as a plain OAuth2 provider.
+[[sso]]
+id = "dex-oauth"
+display_name = "Dex (generic OAuth2)"
+type = "oauth2"
+client_id = "lemnos"
+client_secret = "lemnos-dev-secret"
+auth_url = "http://localhost:5556/dex/auth"
+token_url = "http://localhost:5556/dex/token"
+userinfo_url = "http://localhost:5556/dex/userinfo"
+redirect_url = "http://localhost:3000/auth/sso/dex-oauth/callback"
+scopes = ["openid", "email", "profile"]
+
+# Users: alice / alice-password, bob / bob-password
+[[sso]]
+id = "saml"
+display_name = "SimpleSAMLphp (SAML)"
+type = "saml"
+entity_id = "http://localhost:3000/auth/sso/saml"
+acs_url = "http://localhost:3000/auth/sso/saml/acs"
+idp_metadata = { url = "http://localhost:8088/simplesaml/saml2/idp/metadata.php" }
+tracker_key = "bGVtbm9zLWRldi10cmFja2VyLWtleS0zMi1ieXRlcyE="

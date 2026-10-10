@@ -4,9 +4,9 @@
 use topcoat::{
     Result,
     asset::{AssetBundle, RouterBuilderAssetExt},
-    cookie::RouterBuilderCookieExt,
+    cookie::{Key, RouterBuilderCookieExt},
     font::{self, Font, fontsource::fontsource_font},
-    router::{Router, RouterBuilderDiscoverExt, Slot, layout, module_router, page},
+    router::{OriginPolicy, Router, RouterBuilderDiscoverExt, Slot, layout, module_router, page},
     session::{RouterBuilderSessionExt, SessionConfig},
     tailwind,
     view::{View, view},
@@ -14,6 +14,7 @@ use topcoat::{
 
 use crate::components::{hello, nav_bar};
 
+pub mod account;
 pub mod auth;
 
 // Self-hosted (bundled as assets) instead of loaded from Google Fonts.
@@ -25,7 +26,7 @@ const DM_SANS: Font = fontsource_font!(
     host: Asset,
 );
 
-pub fn router() -> Router {
+pub fn router(auth: auth::AuthState) -> Router {
     module_router!()
         .discover()
         // Serves bundled files (like the Tailwind stylesheet) under /_topcoat/assets.
@@ -33,6 +34,13 @@ pub fn router() -> Router {
         // Session tokens travel in a cookie, so sessions need cookie support.
         .cookies()
         .sessions(SessionConfig::default())
+        .app_context(auth)
+        // Encrypts the cookies that carry a half-finished sign-in. A new key
+        // per start means those (not sessions) are dropped on restart.
+        .app_context(Key::generate())
+        // POSTs from other sites are refused, except a SAML provider
+        // delivering its signed answer.
+        .origin_policy(OriginPolicy::new().exempt_paths(["/auth/sso/{provider}/acs"]))
         .build()
 }
 
@@ -82,4 +90,3 @@ pub async fn home() -> Result<impl View> {
         hello(name: "World")
     })
 }
-

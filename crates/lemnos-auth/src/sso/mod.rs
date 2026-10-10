@@ -20,14 +20,13 @@
 //! This module stores nothing itself; where the [`PendingLogin`] lives and
 //! which Lemnos account an [`Identity`] maps to are up to the caller.
 
-use std::{
-    error::Error as StdError,
-    fmt,
-    time::{Duration, SystemTime, UNIX_EPOCH},
-};
+use std::{error::Error as StdError, fmt, time::Duration};
 
 use serde::{Deserialize, Serialize};
 use url::Url;
+
+use crate::unix_now;
+pub use crate::{Identity, Secret};
 
 pub mod oauth;
 pub mod oidc;
@@ -66,45 +65,6 @@ pub enum ProviderKind {
     OAuth2(OAuthConfig),
     #[cfg(feature = "saml")]
     Saml(SamlConfig),
-}
-
-/// A configuration value that must not end up in logs.
-#[derive(Clone, Deserialize)]
-#[serde(transparent)]
-pub struct Secret(String);
-
-impl Secret {
-    pub fn new(value: impl Into<String>) -> Self {
-        Self(value.into())
-    }
-
-    pub fn expose(&self) -> &str {
-        &self.0
-    }
-}
-
-impl fmt::Debug for Secret {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("Secret(..)")
-    }
-}
-
-/// Who the provider says the user is.
-///
-/// Only `provider` + `subject` together identify a user. Do not link
-/// accounts by `email` unless `email_verified` is `Some(true)`: most
-/// providers let users type in any address.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Identity {
-    /// The [`ProviderConfig::id`] that authenticated the user.
-    pub provider: String,
-    /// The provider's stable, unique ID for the user.
-    pub subject: String,
-    pub email: Option<String>,
-    /// `None` when the provider does not say.
-    pub email_verified: Option<bool>,
-    pub name: Option<String>,
-    pub username: Option<String>,
 }
 
 /// Where to send the browser, and what to remember until it comes back.
@@ -434,12 +394,6 @@ fn validate_id(id: &str) -> Result<(), SsoError> {
             "provider id `{id}` may only contain lowercase letters, digits and `-`"
         )))
     }
-}
-
-fn unix_now() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |elapsed| elapsed.as_secs())
 }
 
 fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {

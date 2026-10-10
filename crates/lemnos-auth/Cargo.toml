@@ -7,6 +7,11 @@ edition.workspace = true
 # SAML 2.0 sign-in. Opt-in: the pure-Rust `saml` crate is pre-1.0 and has not
 # been externally audited. See `src/sso/saml.rs` for what it does and doesn't allow.
 saml = ["dep:saml", "dep:base64"]
+# Sign-in against an LDAP directory or Active Directory. Pure Rust.
+ldap = ["dep:ldap3"]
+# Passkeys (WebAuthn). Opt-in: uses a pre-release of `webauthn-rs`, the first
+# line without an OpenSSL dependency.
+passkeys = ["dep:webauthn-rs", "dep:uuid"]
 
 [dependencies]
 # OIDC and generic OAuth2, over rustls so no system OpenSSL is needed.
@@ -23,5 +28,18 @@ url = { version = "2", features = ["serde"] }
 saml = { version = "=0.1.0-alpha.1", default-features = false, features = ["rsa-sha", "ecdsa-sha", "metadata-emit"], optional = true }
 base64 = { version = "0.22", optional = true }
 
+# Local accounts: Argon2id password hashing and TOTP codes for 2FA.
+password-auth = "1.0"
+totp-rs = { version = "6", features = ["otpauth", "gen_secret"] }
+# Password hashing is slow on purpose, so it runs on tokio's blocking pool.
+tokio = { workspace = true, features = ["rt", "time"] }
+
+ldap3 = { version = "0.12.1", default-features = false, features = ["tls-rustls-ring"], optional = true }
+# Exact pin: 0.6 is a pre-release. The stable 0.5 line needs system OpenSSL.
+webauthn-rs = { version = "=0.6.1-dev", features = ["conditional-ui", "danger-allow-state-serialisation"], optional = true }
+uuid = { version = "1", optional = true }
+
 [dev-dependencies]
+# `cookies` lets tests/dev_stack.rs act as a browser on the IdPs' login pages.
+reqwest = { version = "0.12", default-features = false, features = ["cookies"] }
 tokio = { workspace = true, features = ["macros", "rt"] }

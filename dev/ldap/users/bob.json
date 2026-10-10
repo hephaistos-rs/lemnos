@@ -1,0 +1,8 @@
+{
+  "id": "bob",
+  "email": "bob@lemnos.test",
+  "password": "bob-password",
+  "displayName": "Bob Builder",
+  "firstName": "Bob",
+  "lastName": "Builder"
+}
