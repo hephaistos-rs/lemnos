@@ -12,6 +12,13 @@
 #
 # Everything in here is a test value. Do not reuse any of it.
 
+# Where accounts and sessions are kept. This is also the default: a SQLite
+# file in the directory Lemnos is started from. The other two work with the
+# containers in compose.dev.yml:
+#   database_url = "postgres://lemnos:lemnos-dev@localhost:54320/lemnos"
+#   database_url = "mysql://lemnos:lemnos-dev@localhost:33060/lemnos"
+database_url = "sqlite:lemnos.db?mode=rwc"
+
 # Let anyone create a local account on the sign-up page.
 allow_sign_up = true
 

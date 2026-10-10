@@ -1,11 +1,10 @@
 // /auth/*: signing in to Lemnos. The real logic lives in `lemnos-auth`; these
 // pages only turn requests into calls to it.
 
-use std::error::Error;
+use std::{error::Error, time::SystemTime};
 
-use lemnos_auth::{
-    Auth, AuthError, Authenticated, MemoryStore, SessionId, UnknownIdentity, User, sso::Sso,
-};
+use lemnos_auth::{Auth, AuthError, Authenticated, SessionId, UnknownIdentity, User, sso::Sso};
+use lemnos_db::Database;
 use serde::{Serialize, de::DeserializeOwned};
 use topcoat::{
     Result,
@@ -25,8 +24,7 @@ pub mod two_factor;
 
 /// Everything the auth pages share. Registered on the router as app context.
 pub struct AuthState {
-    // Accounts live in memory for now, so they are gone after a restart.
-    pub auth: Auth<MemoryStore>,
+    pub auth: Auth<Database>,
     pub sso: Sso,
     pub allow_sign_up: bool,
     pub ldap: bool,
@@ -36,7 +34,10 @@ pub struct AuthState {
 
 impl AuthState {
     pub async fn from_config(config: Config) -> Result<Self, Box<dyn Error>> {
-        let mut auth = Auth::new(MemoryStore::new(), Default::default());
+        let database = Database::connect(config.database_url.expose()).await?;
+        // Nobody can use these any more; this just tidies up after the last run.
+        database.delete_expired_sessions(SystemTime::now()).await?;
+        let mut auth = Auth::new(database, Default::default());
         let ldap = config.ldap.is_some();
         if let Some(ldap) = config.ldap {
             auth = auth.with_ldap(ldap)?;

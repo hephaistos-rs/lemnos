@@ -9,6 +9,7 @@ lemnos-core.workspace = true
 # runtime by the config file (see `src/config.rs`).
 lemnos-auth = { workspace = true, features = ["ldap", "passkeys", "saml"] }
 lemnos-proxmox.workspace = true
+lemnos-db.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 topcoat = { version = "0.10.0", features = ["tailwind", "font-fontsource"] }
 serde = { version = "1", features = ["derive"] }

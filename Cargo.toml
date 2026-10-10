@@ -4,6 +4,7 @@ resolver = "3"
 members = [
     "crates/lemnos-core",
     "crates/lemnos-auth",
+    "crates/lemnos-db",
     "crates/lemnos-ui",
     "crates/lemnos-proxmox",
     "crates/lemnos-vmware",
@@ -26,6 +27,7 @@ tokio = "1.53.2"
 # Our own crates, so members can write `lemnos-core.workspace = true`.
 lemnos-core = { path = "crates/lemnos-core" }
 lemnos-auth = { path = "crates/lemnos-auth" }
+lemnos-db = { path = "crates/lemnos-db" }
 lemnos-proxmox = { path = "crates/lemnos-proxmox" }
 lemnos-vmware = { path = "crates/lemnos-vmware" }
 lemnos-kedalion = { path = "crates/lemnos-kedalion" }

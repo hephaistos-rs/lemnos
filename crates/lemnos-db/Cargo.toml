@@ -1,0 +1,17 @@
+[package]
+name = "lemnos-db"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+lemnos-auth.workspace = true
+# One driver per supported database; which one is used is decided at runtime
+# by the connection URL. No macros: queries are plain strings, so building
+# Lemnos never needs a database to check them against.
+sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-rustls-ring", "any", "sqlite", "postgres", "mysql"] }
+rand = "0.9"
+thiserror = "2"
+
+[dev-dependencies]
+lemnos-auth = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

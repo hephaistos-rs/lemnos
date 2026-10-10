@@ -78,3 +78,41 @@ services:
       interval: 2s
       timeout: 5s
       retries: 30
+
+  # The two server databases Lemnos supports besides SQLite, for
+  # `cargo test -p lemnos-db -- --ignored` and for trying Lemnos on them:
+  #   postgres://lemnos:lemnos-dev@localhost:54320/lemnos
+  #   mysql://lemnos:lemnos-dev@localhost:33060/lemnos
+  # Unusual host ports, so they don't clash with databases you already run.
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: lemnos
+      POSTGRES_PASSWORD: lemnos-dev
+      POSTGRES_DB: lemnos
+    ports:
+      - "127.0.0.1:54320:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "lemnos", "-d", "lemnos"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  mariadb:
+    image: mariadb:11
+    environment:
+      MARIADB_USER: lemnos
+      MARIADB_PASSWORD: lemnos-dev
+      MARIADB_DATABASE: lemnos
+      MARIADB_ROOT_PASSWORD: lemnos-dev-root
+    ports:
+      - "127.0.0.1:33060:3306"
+    tmpfs:
+      - /var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 2s
+      timeout: 5s
+      retries: 60

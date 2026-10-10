@@ -15,7 +15,9 @@ use std::{
 };
 
 const FREE_FAILURES: u32 = 5;
-const MAX_BLOCK: Duration = Duration::from_secs(15 * 60);
+// The maximum block time is 15 minutes, which is long enough to slow down guessing
+// but short enough that a user can try again after a break.
+const MAX_BLOCK: Duration = Duration::from_secs(60 * 15);
 /// Above this many keys, stale ones are dropped, so guessing random
 /// usernames can't grow the map without bound.
 const PRUNE_ABOVE: usize = 10_000;

@@ -1,3 +1,5 @@
 /target
 # Local Lemnos configuration; start from lemnos.dev.toml.
 /lemnos.toml
+# The default SQLite database (and its write-ahead files).
+/lemnos.db*

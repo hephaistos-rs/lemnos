@@ -7,12 +7,15 @@ use std::{env, error::Error, fs, path::PathBuf};
 
 const DEFAULT_PATH: &str = "lemnos.toml";
 
-use lemnos_auth::{ldap::LdapConfig, passkey::PasskeyConfig, sso::ProviderConfig};
+use lemnos_auth::{Secret, ldap::LdapConfig, passkey::PasskeyConfig, sso::ProviderConfig};
 use serde::Deserialize;
 
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Deserialize)]
 #[serde(default)]
 pub struct Config {
+    /// Where accounts and sessions are kept: `sqlite:`, `postgres://` or
+    /// `mysql://` (MariaDB too). See `lemnos-db` for the URL forms.
+    pub database_url: Secret,
     /// Whether visitors can create their own local account.
     pub allow_sign_up: bool,
     /// IDs of the SSO providers (or the LDAP directory) whose users get an
@@ -22,6 +25,21 @@ pub struct Config {
     pub sso: Vec<ProviderConfig>,
     pub ldap: Option<LdapConfig>,
     pub passkeys: Option<PasskeyConfig>,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            // A file in the directory Lemnos is started from, created on
+            // first use. A URL can hold a password, hence `Secret`.
+            database_url: Secret::new("sqlite:lemnos.db?mode=rwc"),
+            allow_sign_up: false,
+            auto_provision: Vec::new(),
+            sso: Vec::new(),
+            ldap: None,
+            passkeys: None,
+        }
+    }
 }
 
 impl Config {
