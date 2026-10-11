@@ -1,0 +1,9 @@
+{
+  "id": "alice",
+  "email": "alice@lemnos.test",
+  "password": "alice-password",
+  "displayName": "Alice Liddell",
+  "firstName": "Alice",
+  "lastName": "Liddell",
+  "groups": ["lemnos-admins"]
+}
