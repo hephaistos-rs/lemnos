@@ -1,20 +1,29 @@
-//! VMs and containers: listing them and powering them on and off.
+//! VMs and containers: listing them, powering them on and off, and managing
+//! their snapshots and copies.
 //!
 //! Proxmox calls both "guests" and numbers them from the same ID space, so
 //! they share types here. [`list`] fetches all of them in a single request.
-//! The power functions only kick off the change: they return a [`Task`]
-//! immediately, and you need [`crate::tasks::wait`] to find out whether it
-//! worked.
+//! Everything that changes a guest only kicks off the change: it returns a
+//! [`Task`](crate::tasks::Task) immediately, and you need
+//! [`crate::tasks::wait`] to find out whether it worked.
 
 use proxmox_api::ReqwestError;
 use proxmox_api::cluster::ClusterClient;
 use proxmox_api::cluster::resources::{GetOutputItems, GetParams, Type, Type2};
 use proxmox_api::nodes::NodesClient;
+use proxmox_api::nodes::node::lxc::vmid::status::current::Status as LxcStatus;
+use proxmox_api::nodes::node::qemu::vmid::status::current::Status as QemuStatus;
 use proxmox_api::types::bounded_integer::BoundedInteger;
 use proxmox_api::types::bounded_number::BoundedNumber;
 
 use crate::client::Client;
-use crate::tasks::Task;
+
+mod lifecycle;
+mod power;
+pub mod snapshots;
+
+pub use lifecycle::*;
+pub use power::*;
 
 /// A guest's numeric ID, 100 or higher. Create one with `VmId::try_from(100)`.
 pub use proxmox_api::types::VmId;
@@ -41,6 +50,8 @@ pub struct GuestId {
 pub enum GuestStatus {
     Running,
     Stopped,
+    /// Frozen with its memory kept, by [`suspend`]. [`resume`] continues it.
+    Paused,
     /// Any other status Proxmox reports, passed through as-is.
     Other(String),
 }
@@ -95,11 +106,7 @@ fn guest_from(resource: GetOutputItems) -> Option<Guest> {
             kind,
         },
         name: resource.name,
-        status: match resource.status.as_deref() {
-            Some("running") => GuestStatus::Running,
-            Some("stopped") => GuestStatus::Stopped,
-            other => GuestStatus::Other(other.unwrap_or_default().to_string()),
-        },
+        status: status_from(resource.status.as_deref()),
         template: resource.template.unwrap_or(false),
         cpu: resource.cpu.map(|cpu| cpu.get()),
         max_cpu: resource.maxcpu.map(|cpu| cpu.get()),
@@ -116,70 +123,78 @@ fn guest_from(resource: GetOutputItems) -> Option<Guest> {
     })
 }
 
-/// Starts the guest.
-pub async fn start(client: &Client, guest: &GuestId) -> Result<Task, ReqwestError> {
-    let node = NodesClient::new(client).node(&guest.node);
-    let upid = match guest.kind {
-        GuestKind::Qemu => {
-            let status = node.qemu().vmid(guest.vmid).status();
-            status.start().post(Default::default()).await?
-        }
-        GuestKind::Lxc => {
-            let status = node.lxc().vmid(guest.vmid).status();
-            status.start().post(Default::default()).await?
-        }
-    };
-    Ok(Task::new(&guest.node, upid))
+fn status_from(status: Option<&str>) -> GuestStatus {
+    match status {
+        Some("running") => GuestStatus::Running,
+        Some("stopped") => GuestStatus::Stopped,
+        Some("paused") => GuestStatus::Paused,
+        other => GuestStatus::Other(other.unwrap_or_default().to_string()),
+    }
 }
 
-/// Asks the guest OS to shut down gracefully. This can take a while, and
-/// fails if the guest ignores the request. Use [`stop`] to force it.
-pub async fn shutdown(client: &Client, guest: &GuestId) -> Result<Task, ReqwestError> {
-    let node = NodesClient::new(client).node(&guest.node);
-    let upid = match guest.kind {
-        GuestKind::Qemu => {
-            let status = node.qemu().vmid(guest.vmid).status();
-            status.shutdown().post(Default::default()).await?
-        }
-        GuestKind::Lxc => {
-            let status = node.lxc().vmid(guest.vmid).status();
-            status.shutdown().post(Default::default()).await?
-        }
-    };
-    Ok(Task::new(&guest.node, upid))
+/// Live figures for a single guest, asked from the node it runs on.
+#[derive(Debug, Clone)]
+pub struct Current {
+    pub status: GuestStatus,
+    /// Set while an operation such as a backup or migration holds the guest.
+    /// Most other changes are refused until it is released.
+    pub lock: Option<String>,
+    /// CPU usage as a fraction of `max_cpu`.
+    pub cpu: Option<f64>,
+    /// Number of cores assigned.
+    pub max_cpu: Option<f64>,
+    /// Memory in use, in bytes.
+    pub mem: Option<u64>,
+    /// Memory assigned, in bytes.
+    pub max_mem: Option<u64>,
+    /// Uptime in seconds.
+    pub uptime: Option<u64>,
 }
 
-/// Hard stop, like pulling the plug. It takes effect immediately, but the
-/// guest gets no chance to shut down cleanly.
-pub async fn stop(client: &Client, guest: &GuestId) -> Result<Task, ReqwestError> {
+/// Fetches the current state of one guest. Unlike [`list`], this can tell a
+/// paused VM from a running one.
+pub async fn current(client: &Client, guest: &GuestId) -> Result<Current, ReqwestError> {
     let node = NodesClient::new(client).node(&guest.node);
-    let upid = match guest.kind {
-        GuestKind::Qemu => {
-            let status = node.qemu().vmid(guest.vmid).status();
-            status.stop().post(Default::default()).await?
-        }
-        GuestKind::Lxc => {
-            let status = node.lxc().vmid(guest.vmid).status();
-            status.stop().post(Default::default()).await?
-        }
-    };
-    Ok(Task::new(&guest.node, upid))
-}
+    let unsigned = |value: Option<i64>| value.and_then(|value| u64::try_from(value).ok());
 
-/// Gracefully shuts the guest down and starts it again.
-pub async fn reboot(client: &Client, guest: &GuestId) -> Result<Task, ReqwestError> {
-    let node = NodesClient::new(client).node(&guest.node);
-    let upid = match guest.kind {
+    Ok(match guest.kind {
         GuestKind::Qemu => {
             let status = node.qemu().vmid(guest.vmid).status();
-            status.reboot().post(Default::default()).await?
+            let current = status.current().get().await?;
+            // `status` only knows running and stopped; `qmpstatus` is what
+            // QEMU itself reports, and is where "paused" shows up.
+            let status = match (current.qmpstatus.as_deref(), current.status) {
+                (Some("paused"), _) => GuestStatus::Paused,
+                (_, QemuStatus::Running) => GuestStatus::Running,
+                (_, QemuStatus::Stopped) => GuestStatus::Stopped,
+            };
+            Current {
+                status,
+                lock: current.lock,
+                cpu: current.cpu,
+                max_cpu: current.cpus,
+                mem: unsigned(current.mem),
+                max_mem: unsigned(current.maxmem),
+                uptime: unsigned(current.uptime),
+            }
         }
         GuestKind::Lxc => {
             let status = node.lxc().vmid(guest.vmid).status();
-            status.reboot().post(Default::default()).await?
+            let current = status.current().get().await?;
+            Current {
+                status: match current.status {
+                    LxcStatus::Running => GuestStatus::Running,
+                    LxcStatus::Stopped => GuestStatus::Stopped,
+                },
+                lock: current.lock,
+                cpu: current.cpu,
+                max_cpu: current.cpus,
+                mem: unsigned(current.mem),
+                max_mem: unsigned(current.maxmem),
+                uptime: unsigned(current.uptime),
+            }
         }
-    };
-    Ok(Task::new(&guest.node, upid))
+    })
 }
 
 #[cfg(test)]

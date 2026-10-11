@@ -3,12 +3,14 @@
 //! Things like starting a guest or taking a snapshot return immediately with
 //! a task ID (a "UPID") while the actual work continues in the background.
 //! So having a [`Task`] only tells you Proxmox accepted the request. [`wait`]
-//! polls until the task finishes and tells you whether it succeeded.
+//! polls until the task finishes and tells you whether it succeeded, and
+//! [`log`] shows what it printed along the way.
 
 use std::time::Duration;
 
 use proxmox_api::ReqwestError;
 use proxmox_api::nodes::NodesClient;
+use proxmox_api::nodes::node::tasks::upid::log::GetParams;
 use proxmox_api::nodes::node::tasks::upid::status::Status;
 use tokio::time::Instant;
 
@@ -64,6 +66,30 @@ pub async fn wait(client: &Client, task: &Task, timeout: Duration) -> Result<(),
         }
         tokio::time::sleep(POLL_INTERVAL).await;
     }
+}
+
+/// Asks Proxmox to abort a running task. What it had already done is not
+/// undone, and [`wait`] afterwards reports the task as failed.
+pub async fn cancel(client: &Client, task: &Task) -> Result<(), ReqwestError> {
+    let tasks = NodesClient::new(client).node(&task.node).tasks();
+    tasks.upid(&task.upid).delete().await
+}
+
+/// Fetches the task's output, one entry per line and at most `max_lines` of
+/// them from the start. This is where the reason for a failure is spelled out.
+pub async fn log(
+    client: &Client,
+    task: &Task,
+    max_lines: u32,
+) -> Result<Vec<String>, ReqwestError> {
+    let tasks = NodesClient::new(client).node(&task.node).tasks();
+    let params = GetParams {
+        limit: i128::from(max_lines).try_into().ok(),
+        ..Default::default()
+    };
+    let lines = tasks.upid(&task.upid).log().get(params).await?;
+
+    Ok(lines.into_iter().map(|line| line.t).collect())
 }
 
 /// Turns a finished task's exit status into a `Result`.

@@ -22,8 +22,10 @@
 //! [`proxmox_api`], e.g. `proxmox_api::nodes::NodesClient::new(client)`.
 
 use std::fmt;
+use std::time::Duration;
 
 use proxmox_api::version::VersionClient;
+use tokio::time::Instant;
 
 /// An authenticated Proxmox VE API client.
 pub use proxmox_api::ReqwestClient as Client;
@@ -70,8 +72,7 @@ pub enum Credentials {
         secret: String,
     },
     /// The user's password. It gets exchanged for a ticket that's valid for
-    /// two hours, so call [`Client::refresh_auth_ticket`] before then to
-    /// stay logged in.
+    /// two hours, so run [`keep_alive`] next to it to stay logged in.
     Password(String),
 }
 
@@ -114,4 +115,43 @@ pub async fn connect(endpoint: &Endpoint, credentials: &Credentials) -> Result<C
     VersionClient::new(&client).get().await?;
 
     Ok(client)
+}
+
+/// How long a ticket stays valid after it was issued.
+const TICKET_LIFETIME: Duration = Duration::from_secs(2 * 60 * 60);
+/// How often [`keep_alive`] looks at the ticket. The client itself only
+/// renews one that is over an hour old, so most looks cost nothing.
+const REFRESH_INTERVAL: Duration = Duration::from_secs(10 * 60);
+
+/// Keeps a password login from expiring, for as long as this future runs.
+///
+/// It never finishes while things go well, so run it in the background:
+///
+/// ```no_run
+/// # async fn demo(client: lemnos_proxmox::client::Client) {
+/// let session = client.clone();
+/// tokio::spawn(async move {
+///     let error = lemnos_proxmox::client::keep_alive(&session).await;
+///     eprintln!("Proxmox session lost: {error}");
+/// });
+/// # }
+/// ```
+///
+/// It returns only once the ticket could not be renewed for so long that it
+/// has expired, with the last error. After that, [`connect`] again. A client
+/// that uses an API token has no ticket, so for it this does nothing.
+pub async fn keep_alive(client: &Client) -> Error {
+    let mut renewed = Instant::now();
+
+    loop {
+        tokio::time::sleep(REFRESH_INTERVAL).await;
+
+        match client.refresh_auth_ticket(false).await {
+            Ok(()) => renewed = Instant::now(),
+            // A single failure is usually the network. The old ticket still
+            // works, so keep trying until it can no longer be valid.
+            Err(error) if renewed.elapsed() >= TICKET_LIFETIME => return error.into(),
+            Err(_) => {}
+        }
+    }
 }
