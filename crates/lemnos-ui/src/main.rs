@@ -1,6 +1,7 @@
 mod app;
 mod components;
 mod config;
+mod qr;
 
 #[tokio::main]
 async fn main() {

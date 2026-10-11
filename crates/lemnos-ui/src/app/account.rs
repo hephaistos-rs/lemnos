@@ -115,14 +115,27 @@ pub async fn totp_begin(cx: &Cx) -> Result<impl View> {
         Err(error) => return Err(error.into()),
     };
 
+    // The QR code holds the same `otpauth://` link as the button below, so
+    // scanning it with a phone sets up the app in one go.
+    let qr_code = crate::qr::data_url(&enrollment.otpauth_url);
+
     Ok(view! {
         <div class="max-w-xl mx-auto mt-12 p-6 rounded-lg bg-secondary-700 flex flex-col gap-y-4">
             <h2 class="text-2xl font-bold text-secondary-50">"Set up two-factor codes"</h2>
-            <p class="text-secondary-200">"Add this key to your authenticator app, then enter the code it shows. Nothing changes until you do."</p>
-            <p class="font-mono text-lg break-all text-secondary-50">(enrollment.secret_base32.as_str())</p>
-            <a href=(enrollment.otpauth_url.as_str()) class="nav-link">"Open in an authenticator app on this device"</a>
+            <p class="text-secondary-200">"Scan this code with an authenticator app on your phone, then enter the 6-digit code the app shows. Nothing changes until you do."</p>
+            if let Some(qr_code) = &qr_code {
+                <img src=(qr_code.as_str()) alt="QR code for your authenticator app" width="220" height="220" class="self-center rounded">
+            }
+            <div class="flex flex-col gap-y-1">
+                <p class="text-sm text-secondary-300">"Can't scan it? Type this key into the app instead:"</p>
+                <p class="font-mono text-lg break-all text-secondary-50">(enrollment.secret_base32.as_str())</p>
+            </div>
+            <div class="flex flex-col gap-y-1">
+                <p class="text-sm text-secondary-300">"Authenticator app on this same device?"</p>
+                <a href=(enrollment.otpauth_url.as_str()) class="button text-center">"Open it here"</a>
+            </div>
             <form method="post" action=(href!(totp_confirm)) class="flex flex-col gap-y-2">
-                <label for="code" class="label">"Code"</label>
+                <label for="code" class="label">"Code from the app"</label>
                 <div class="input-wrapper">
                     <input type="text" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" autofocus="" required="">
                 </div>
