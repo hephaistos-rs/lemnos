@@ -15,6 +15,9 @@
 //! the in-memory store is used. Switching databases is a change of URL; data
 //! is not moved from one to the other.
 //!
+//! It also keeps the Proxmox VE environments Lemnos manages; see
+//! [`ProxmoxEnvironment`].
+//!
 //! To work the same on all three, the schema sticks to what they share:
 //! every column is a 64-bit integer or text. Times are stored as seconds
 //! since the Unix epoch, and binary values as hex.
@@ -26,7 +29,13 @@ use sqlx::{
 };
 
 mod auth_store;
+mod proxmox;
 mod schema;
+
+pub use proxmox::{
+    NewProxmoxEnvironment, ProxmoxEnvironment, ProxmoxEnvironmentId, ProxmoxLogin,
+    ProxmoxStoreError,
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum DbError {

@@ -10,7 +10,8 @@ use sqlx::Row;
 use crate::{Database, Dialect};
 
 /// Step N (counting from 1) takes the schema from version N-1 to N.
-const MIGRATIONS: &[fn(Dialect) -> Vec<String>] = &[accounts_and_sessions, unique_passkeys];
+const MIGRATIONS: &[fn(Dialect) -> Vec<String>] =
+    &[accounts_and_sessions, unique_passkeys, proxmox_environments];
 
 fn accounts_and_sessions(dialect: Dialect) -> Vec<String> {
     // MariaDB/MySQL compare text ignoring case unless told otherwise. IDs
@@ -83,6 +84,29 @@ fn unique_passkeys(dialect: Dialect) -> Vec<String> {
     statements
         .push("CREATE UNIQUE INDEX passkeys_credential_id ON passkeys (credential_id)".to_owned());
     statements
+}
+
+/// The Proxmox VE environments Lemnos manages. `token_id` is only set when
+/// the login is an API token; `secret` is then the token's secret, and the
+/// user's password otherwise.
+fn proxmox_environments(dialect: Dialect) -> Vec<String> {
+    // As for the first tables: names compare by bytes on every database.
+    let table_options = match dialect {
+        Dialect::MySql => " DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin",
+        Dialect::Sqlite | Dialect::Postgres => "",
+    };
+    vec![format!(
+        "CREATE TABLE proxmox_environments (
+            id BIGINT NOT NULL PRIMARY KEY,
+            name VARCHAR(64) NOT NULL UNIQUE,
+            url VARCHAR(255) NOT NULL,
+            username VARCHAR(64) NOT NULL,
+            realm VARCHAR(32) NOT NULL,
+            token_id VARCHAR(64),
+            secret TEXT NOT NULL,
+            accept_invalid_certs BIGINT NOT NULL
+        ){table_options}"
+    )]
 }
 
 pub(crate) async fn migrate(database: &Database) -> Result<(), sqlx::Error> {
