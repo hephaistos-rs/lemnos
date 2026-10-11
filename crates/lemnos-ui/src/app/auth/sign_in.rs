@@ -15,6 +15,7 @@ use topcoat::{
 };
 
 use super::{error_code, error_message, start_session, stash, state, two_factor};
+use crate::components::notice;
 
 #[query_params(error = bad_request)]
 struct Query {
@@ -29,49 +30,61 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
     let providers: Vec<_> = state.sso.providers().collect();
 
     Ok(view! {
-        <div class="max-w-md mx-auto mt-12 p-8 rounded-lg bg-secondary-700">
-            <h2 class="text-2xl font-bold mb-6 text-center text-secondary-50">"Sign in"</h2>
+        <div class="page-narrow">
+            <div class="flex flex-col gap-y-1">
+                <h1 class="text-title font-semibold">"Sign in"</h1>
+                <p class="text-lead text-ink-muted">"Forge your own cloud."</p>
+            </div>
+
             if let Some(code) = &query.error {
-                <p class="mb-4 text-sm text-danger-200">(error_message(code))</p>
+                notice(tone: "danger", message: error_message(code))
             }
             if query.notice.as_deref() == Some("created") {
-                <p class="mb-4 text-sm text-success-200">"Account created. You can sign in now."</p>
+                notice(tone: "success", message: "Account created. You can sign in now.")
             }
-            // POST keeps the password out of the URL.
-            <form method="post" class="flex flex-col gap-y-4">
-                <div class="flex flex-col gap-y-1">
-                    <label for="username" class="label">"Username"</label>
-                    <div class="input-wrapper">
-                        <input type="text" id="username" name="username" autocomplete="username webauthn" required="">
+
+            <div class="panel">
+                // POST keeps the password out of the URL.
+                <form method="post" class="flex flex-col gap-y-4">
+                    <div class="field">
+                        <label for="username" class="label">"Username"</label>
+                        <input type="text" id="username" name="username" class="input" autocomplete="username webauthn" required="">
+                        if state.ldap {
+                            <p class="hint">"Directory (LDAP) accounts work here too."</p>
+                        }
                     </div>
-                </div>
-                <div class="flex flex-col gap-y-1">
-                    <label for="password" class="label">"Password"</label>
-                    <div class="input-wrapper">
-                        <input type="password" id="password" name="password" autocomplete="current-password" required="">
+                    <div class="field">
+                        <label for="password" class="label">"Password"</label>
+                        <input type="password" id="password" name="password" class="input" autocomplete="current-password" required="">
                     </div>
-                </div>
-                <button type="submit" class="button button-primary w-full mt-2">"Sign in"</button>
-                if state.ldap {
-                    <p class="text-xs text-secondary-300">"Directory (LDAP) accounts work here too."</p>
+                    <button type="submit" class="button button-primary w-full">"Sign in"</button>
+                </form>
+                if state.passkeys {
+                    <div class="or">"or"</div>
+                    <div class="flex flex-col gap-y-2">
+                        // Uses the username typed above; see passkey.js.
+                        <button type="button" class="button w-full" data-passkey-sign-in="">"Sign in with a passkey"</button>
+                        <p class="text-meta text-danger-text" data-passkey-error=""></p>
+                    </div>
+                    <script src="/auth/passkey/passkey.js" defer=""></script>
                 }
-            </form>
-            if state.passkeys {
-                <div class="mt-6 pt-6 border-t border-secondary-500 flex flex-col gap-y-2">
-                    // Uses the username typed above; see passkey.js.
-                    <button type="button" class="button w-full" data-passkey-sign-in="">"Sign in with a passkey"</button>
-                    <p class="text-sm text-danger-200" data-passkey-error=""></p>
-                </div>
-                <script src="/auth/passkey/passkey.js" defer=""></script>
-            }
-            if !providers.is_empty() {
-                <div class="mt-6 pt-6 border-t border-secondary-500 flex flex-col gap-y-2">
-                    for provider in &providers {
-                        <a href=(format!("/auth/sso/{}/start", provider.id)) class="button w-full text-center">
-                            "Continue with " (provider.display_name)
-                        </a>
-                    }
-                </div>
+                if !providers.is_empty() {
+                    <div class="or">"or"</div>
+                    <div class="flex flex-col gap-y-2">
+                        for provider in &providers {
+                            <a href=(format!("/auth/sso/{}/start", provider.id)) class="button w-full">
+                                "Continue with " (provider.display_name)
+                            </a>
+                        }
+                    </div>
+                }
+            </div>
+
+            if state.allow_sign_up {
+                <p class="text-ink-muted">
+                    "New here? "
+                    <a href=(href!(super::sign_up::page)) class="link">"Create an account"</a>
+                </p>
             }
         </div>
     })

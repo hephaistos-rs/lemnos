@@ -3,45 +3,222 @@
 use topcoat::{
     Result,
     context::Cx,
-    router::href,
+    router::{href, request::uri},
     view::{View, component, view},
 };
 
 use crate::app::auth::current_user;
 
+/// Which theme the visitor picked with the theme switch. `System`
+/// follows the device and is what everyone starts with.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Theme {
+    System,
+    Light,
+    Dark,
+}
+
+impl Theme {
+    /// Cookie holding the choice. Absent means `System`.
+    pub const COOKIE: &str = "theme";
+
+    pub fn parse(value: &str) -> Self {
+        match value {
+            "light" => Self::Light,
+            "dark" => Self::Dark,
+            _ => Self::System,
+        }
+    }
+
+    /// The value for the cookie, the form and `<html data-theme>`.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::System => "system",
+            Self::Light => "light",
+            Self::Dark => "dark",
+        }
+    }
+}
+
+fn pressed(on: bool) -> &'static str {
+    if on { "true" } else { "false" }
+}
+
+// The verdigris bar on every page: where you are, where you can go, and who
+// you are. `cx` is passed in by Topcoat: call it as `shell_bar(theme: ...)`.
 #[component]
-pub async fn hello(name: &str) -> Result<impl View> {
+pub async fn shell_bar(cx: &Cx, theme: Theme) -> Result<impl View> {
+    let user = current_user(cx).await?;
+    let path = uri(cx).path();
+    let on_environments = path.starts_with("/proxmox");
+    let on_machines = path == "/";
+
     Ok(view! {
-        <h1>"Hello, " (name) "!"</h1>
+        <header class="shell">
+            <div class="shell-inner">
+                <a href=(href!(crate::app::home)) class="wordmark" aria-label="Lemnos">
+                    "Lemnos"
+                    <span class="wordmark-greek" aria-hidden="true">"ΛΗΜΝΟΣ"</span>
+                </a>
+                if user.is_some() {
+                    <nav class="shell-nav" aria-label="Main">
+                        <a
+                            href=(href!(crate::app::home))
+                            aria-current=(if on_machines { "page" } else { "false" })
+                        >
+                            "Machines"
+                        </a>
+                        <a
+                            href=(href!(crate::app::proxmox::page))
+                            aria-current=(if on_environments { "page" } else { "false" })
+                        >
+                            "Environments"
+                        </a>
+                    </nav>
+                }
+                <div class="shell-end">
+                    theme_switch(theme: theme)
+                    if let Some(user) = &user {
+                        <a href=(href!(crate::app::account::page)) class="shell-link">(&user.name)</a>
+                        // A form, not a link: signing out changes state, so it must be a POST.
+                        <form method="post" action=(href!(crate::app::auth::sign_out::sign_out))>
+                            <button type="submit" class="button button-sm">"Sign out"</button>
+                        </form>
+                    } else {
+                        <a href=(href!(crate::app::auth::sign_in::page)) class="button button-sm">"Sign in"</a>
+                    }
+                </div>
+            </div>
+        </header>
     })
 }
 
-// Shows sign in/up links to visitors, and the user's name plus a sign-out
-// button once signed in. `cx` is passed in by Topcoat: call it as `nav_bar()`.
+// System, light or dark. Three submit buttons, not a script: the choice is
+// stored in a cookie by `set_theme` in app.rs.
 #[component]
-pub async fn nav_bar(cx: &Cx) -> Result<impl View> {
-    let user = current_user(cx).await?;
+pub async fn theme_switch(theme: Theme) -> Result<impl View> {
+    Ok(view! {
+                <form
+            method="post"
+            action=(href!(crate::app::set_theme))
+            class="theme-switch"
+            aria-label="Theme"
+        >
+            <button
+                type="submit"
+                name="theme"
+                value="system"
+                aria-pressed=(pressed(theme == Theme::System))
+                aria-label="Follow this device"
+                title="Follow this device"
+            >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="1.75" y="2.75" width="12.5" height="8.5" rx="1"></rect>
+                    <path d="M5.5 13.75h5"></path>
+                </svg>
+            </button>
+            <button
+                type="submit"
+                name="theme"
+                value="light"
+                aria-pressed=(pressed(theme == Theme::Light))
+                aria-label="Light"
+                title="Light"
+            >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="8" cy="8" r="2.75"></circle>
+                    <path d="M8 1.5v1.5M8 13v1.5M1.5 8H3M13 8h1.5M3.4 3.4l1.05 1.05M11.55 11.55l1.05 1.05M3.4 12.6l1.05-1.05M11.55 4.45l1.05-1.05"></path>
+                </svg>
+            </button>
+            <button
+                type="submit"
+                name="theme"
+                value="dark"
+                aria-pressed=(pressed(theme == Theme::Dark))
+                aria-label="Dark"
+                title="Dark"
+            >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M13.25 9.6A5.75 5.75 0 0 1 6.4 2.75a5.75 5.75 0 1 0 6.85 6.85Z"></path>
+                </svg>
+            </button>
+        </form>
+    })
+}
+
+// Something that went wrong: what it means for the reader in `message`, and
+// the technical reason folded away below it in `detail`. `link` is where to
+// go to look into it, as (address, words), or two empty strings for none.
+#[component]
+pub async fn problem(message: &str, detail: &str, link: (&str, &str)) -> Result<impl View> {
+    Ok(view! {
+        <div class="notice notice-danger" role="alert">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M9 2.25 16.25 15H1.75L9 2.25Z"></path>
+                <path d="M9 7.25v3.5M9 12.9v.1"></path>
+            </svg>
+            <div>
+                <p>
+                    (message)
+                    if !link.0.is_empty() {
+                        " "
+                        <a href=(link.0) class="link">(link.1)</a>
+                    }
+                </p>
+                <details>
+                    <summary>"Technical details"</summary>
+                    <p class="figure">(detail)</p>
+                </details>
+            </div>
+        </div>
+    })
+}
+
+// A message about what just happened. `tone` is "danger", "success" or
+// "warning"; anything else is neutral.
+#[component]
+pub async fn notice(tone: &str, message: &str) -> Result<impl View> {
+    let class = match tone {
+        "danger" => "notice notice-danger",
+        "success" => "notice notice-success",
+        "warning" => "notice notice-warning",
+        _ => "notice",
+    };
+    // Problems are announced to screen readers right away; the rest can wait.
+    let role = if tone == "danger" { "alert" } else { "status" };
 
     Ok(view! {
-        <nav class="flex items-center gap-x-6">
-            <div class="hidden md:flex items-center gap-x-1">
-                <a href=(href!(crate::app::home)) class="nav-link">"Home"</a>
-                <a href="/about" class="nav-link">"About"</a>
-                <a href="/contact" class="nav-link">"Contact"</a>
-            </div>
-            <div class="flex items-center gap-x-2">
-                if let Some(user) = &user {
-                    <a href=(href!(crate::app::proxmox::page)) class="nav-link">"Proxmox"</a>
-                    <a href=(href!(crate::app::account::page)) class="nav-link">(&user.name)</a>
-                    // A form, not a link: signing out changes state, so it must be a POST.
-                    <form method="post" action=(href!(crate::app::auth::sign_out::sign_out))>
-                        <button type="submit" class="button">"Sign out"</button>
-                    </form>
+        <div class=(class) role=(role)>
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                if tone == "success" {
+                    <circle cx="9" cy="9" r="7.25"></circle>
+                    <path d="m5.75 9.25 2.25 2.25 4.25-4.75"></path>
+                } else if tone == "danger" || tone == "warning" {
+                    <path d="M9 2.25 16.25 15H1.75L9 2.25Z"></path>
+                    <path d="M9 7.25v3.5M9 12.9v.1"></path>
                 } else {
-                    <a href=(href!(crate::app::auth::sign_in::page)) class="button">"Sign in"</a>
-                    <a href=(href!(crate::app::auth::sign_up::page)) class="button button-primary">"Sign up"</a>
+                    <circle cx="9" cy="9" r="7.25"></circle>
+                    <path d="M9 8.25v4M9 5.6v.1"></path>
                 }
+            </svg>
+            <p>(message)</p>
+        </div>
+    })
+}
+
+// A heat strip: how much of something is in use, as a fraction from 0 to 1,
+// with `figure` (e.g. "37%" or "2.1 / 8.0 GiB") beside it. Without a
+// fraction the strip stays empty.
+#[component]
+pub async fn heat(fraction: Option<f64>, figure: String) -> Result<impl View> {
+    let percent = fraction.map_or(0.0, |fraction| (fraction * 100.0).clamp(0.0, 100.0));
+
+    Ok(view! {
+        <div class="heat">
+            <div class="heat-track" aria-hidden="true">
+                <span style=(format!("--v: {percent:.0}%"))></span>
             </div>
-        </nav>
+            <span class="figure">(figure)</span>
+        </div>
     })
 }

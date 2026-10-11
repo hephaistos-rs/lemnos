@@ -1,5 +1,6 @@
-// /proxmox: the Proxmox VE environments Lemnos manages. This page lists
-// them and adds or removes one; `environment.rs` shows what runs on one.
+// /proxmox: the environments Lemnos manages, shown as "Environments".
+// Proxmox VE is the only provider so far. This page lists them and adds or
+// removes one; `environment.rs` shows what runs on one.
 // Talking to Proxmox itself is `lemnos-proxmox`'s job.
 
 use std::error::Error;
@@ -24,6 +25,7 @@ use topcoat::{
 
 use crate::{
     app::auth::{current_user, sign_in, state},
+    components::notice,
     config::ProxmoxConfig,
 };
 
@@ -152,164 +154,174 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
     let environments = database(cx).proxmox_environments().await?;
 
     Ok(view! {
-        <div class="max-w-3xl mx-auto mt-12 flex flex-col gap-y-8">
-            <div>
-                <h2 class="text-2xl font-bold text-secondary-50">"Proxmox"</h2>
-                <p class="text-secondary-300">
-                    "The Proxmox VE environments Lemnos manages."
-                </p>
+        <div class="page">
+            <div class="page-head">
+                <div>
+                    <h1>"Environments"</h1>
+                    <p>"Where machines run. Lemnos signs in to each one to list and manage them."</p>
+                </div>
             </div>
 
-            <div class="table">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>"Name"</th>
-                            <th>"Address"</th>
-                            <th>"Signs in as"</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        if environments.is_empty() {
-                            <tr>
-                                <td colspan="4" class="text-secondary-300">
-                                    "None yet. Add one below."
-                                </td>
-                            </tr>
-                        }
-                        for known in &environments {
-                            <tr>
-                                <td>
-                                    <a
-                                        href=(href!(
-                                            environment::page,
-                                            environment::Environment(known.id.0),
-                                        ))
-                                        class="font-medium text-primary-200 hover:underline"
-                                    >
-                                        (known.name.as_str())
-                                    </a>
-                                </td>
-                                <td>(known.url.as_str())</td>
-                                <td>(signs_in_as(known))</td>
-                                <td class="text-right">
-                                    <form method="post" action=(href!(remove))>
-                                        <input
-                                            type="hidden"
-                                            name="id"
-                                            value=(known.id.0.to_string())
-                                        >
-                                        <button type="submit" class="button button-danger">
-                                            "Remove"
-                                        </button>
-                                    </form>
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
+            // The list takes the room that is left; the form keeps its width.
+            <div class="grid gap-8 lg:grid-cols-[minmax(0,1fr)_24rem] items-start">
+                <div class="flex flex-col gap-y-3">
+                    <div class="data data-stack">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>"Name"</th>
+                                    <th>"Provider"</th>
+                                    <th>"Address"</th>
+                                    <th>"Signs in as"</th>
+                                    <th><span class="sr-only">"Remove"</span></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                if environments.is_empty() {
+                                    <tr>
+                                        <td colspan="5" class="empty wide">
+                                            "No environments are connected yet. Add the first one with the form."
+                                        </td>
+                                    </tr>
+                                }
+                                for known in &environments {
+                                    <tr>
+                                        <td data-label="Name" class="name">
+                                            <a
+                                                href=(href!(
+                                                    environment::page,
+                                                    environment::Environment(known.id.0),
+                                                ))
+                                                class="link"
+                                            >
+                                                (known.name.as_str())
+                                            </a>
+                                        </td>
+                                        // The only provider so far.
+                                        <td data-label="Provider">"Proxmox VE"</td>
+                                        <td data-label="Address" class="figure">
+                                            (known.url.as_str())
+                                        </td>
+                                        <td data-label="Signs in as">(signs_in_as(known))</td>
+                                        <td class="wide">
+                                            <div class="actions">
+                                                <form method="post" action=(href!(remove))>
+                                                    <input
+                                                        type="hidden"
+                                                        name="id"
+                                                        value=(known.id.0.to_string())
+                                                    >
+                                                    <button
+                                                        type="submit"
+                                                        class="button button-sm button-danger"
+                                                    >
+                                                        "Remove"
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="text-meta text-ink-faint">
+                        "Removing an environment only makes Lemnos forget it. Nothing changes on the provider's side."
+                    </p>
+                </div>
 
-            <section class="p-6 rounded-lg bg-secondary-700 flex flex-col gap-y-4">
-                <h3 class="text-lg font-bold text-secondary-50">
-                    "Add an environment"
-                </h3>
-                if let Some(code) = &query.error {
-                    <p class="text-sm text-danger-200">(error_message(code))</p>
-                }
-                <form method="post" class="flex flex-col gap-y-4">
-                    <div class="flex flex-col gap-y-1">
-                        <label for="name" class="label">"Name"</label>
-                        <div class="input-wrapper">
+                <section class="panel">
+                    <h2 class="section-title">"Add an environment"</h2>
+                    if let Some(code) = &query.error {
+                        notice(tone: "danger", message: error_message(code))
+                    }
+                    <form method="post" class="flex flex-col gap-y-4">
+                        <div class="field">
+                            <label for="name" class="label">"Name"</label>
                             <input
                                 type="text"
                                 id="name"
                                 name="name"
+                                class="input"
                                 maxlength="64"
                                 placeholder="e.g. Lab"
                                 required=""
                             >
                         </div>
-                    </div>
-                    <div class="flex flex-col gap-y-1">
-                        <label for="url" class="label">"Address"</label>
-                        <div class="input-wrapper">
+                        <div class="field">
+                            <label for="url" class="label">"Address"</label>
                             <input
                                 type="url"
                                 id="url"
                                 name="url"
+                                class="input"
                                 maxlength="255"
                                 placeholder="https://pve.example.com:8006"
                                 required=""
                             >
                         </div>
-                    </div>
-                    <div class="grid grid-cols-2 gap-x-4">
-                        <div class="flex flex-col gap-y-1">
-                            <label for="user" class="label">"User"</label>
-                            <div class="input-wrapper">
+                        <div class="grid grid-cols-2 gap-x-4">
+                            <div class="field">
+                                <label for="user" class="label">"User"</label>
                                 <input
                                     type="text"
                                     id="user"
                                     name="user"
+                                    class="input"
                                     maxlength="64"
                                     placeholder="root"
                                     autocomplete="off"
                                     required=""
                                 >
                             </div>
-                        </div>
-                        <div class="flex flex-col gap-y-1">
-                            <label for="realm" class="label">"Realm"</label>
-                            <div class="input-wrapper">
+                            <div class="field">
+                                <label for="realm" class="label">"Realm"</label>
                                 <input
                                     type="text"
                                     id="realm"
                                     name="realm"
+                                    class="input"
                                     maxlength="32"
                                     placeholder="pam"
                                     required=""
                                 >
                             </div>
                         </div>
-                    </div>
-                    <div class="flex flex-col gap-y-1">
-                        <label for="token_id" class="label">
-                            "API token name (leave empty to sign in with the user's password)"
-                        </label>
-                        <div class="input-wrapper">
+                        <div class="field">
+                            <label for="token_id" class="label">"API token name"</label>
                             <input
                                 type="text"
                                 id="token_id"
                                 name="token_id"
+                                class="input"
                                 maxlength="64"
                                 placeholder="lemnos"
                                 autocomplete="off"
                             >
+                            <p class="hint">"Leave empty to sign in with the user's password."</p>
                         </div>
-                    </div>
-                    <div class="flex flex-col gap-y-1">
-                        <label for="secret" class="label">
-                            "Token secret, or the password"
-                        </label>
-                        <div class="input-wrapper">
+                        <div class="field">
+                            <label for="secret" class="label">"Secret"</label>
                             <input
                                 type="password"
                                 id="secret"
                                 name="secret"
+                                class="input"
                                 autocomplete="off"
                                 required=""
                             >
+                            <p class="hint">"The token's secret, or the user's password."</p>
                         </div>
-                    </div>
-                    <label class="flex items-center gap-x-2 text-secondary-200">
-                        <input type="checkbox" name="accept_invalid_certs" value="on">
-                        "Accept a self-signed certificate"
-                    </label>
-                    <button type="submit" class="button button-primary">"Add"</button>
-                </form>
-            </section>
+                        <label class="check">
+                            <input type="checkbox" name="accept_invalid_certs" value="on">
+                            "Accept a self-signed certificate"
+                        </label>
+                        <button type="submit" class="button button-primary self-start">
+                            "Add environment"
+                        </button>
+                    </form>
+                </section>
+            </div>
         </div>
     })
 }

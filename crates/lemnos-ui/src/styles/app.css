@@ -2,419 +2,616 @@
 
 /* ==========================================================================
    Theme
-   Every `--color-<name>` becomes classes like `bg-<name>`, `text-<name>`, ...
-   (ported from the old project's tailwind.config.js)
+   Bronze at the forge: a verdigris shell, polished bronze for what is in use,
+   patina for what is idle, cinnabar for failure. Every `--color-<name>`
+   becomes classes like `bg-<name>`, `text-<name>`, ...
+
+   Each color is `light-dark(<light>, <dark>)`, so it follows `color-scheme`
+   (set on <html> below) and no class needs a `dark:` twin.
    ========================================================================== */
 @theme {
-  /* Drop Tailwind's default palette (gray, indigo, white, ...) so only the
-     colors below exist. Unknown color classes then generate nothing. */
+  /* Drop Tailwind's default palette and type scale so only the names below
+     exist. Unknown color or size classes then generate nothing. */
   --color-*: initial;
+  --text-*: initial;
 
-  /* Loaded by the `DM_SANS` font in app.rs. */
-  --font-sans: "DM Sans", sans-serif;
+  /* Loaded by the `COMMISSIONER` and `JETBRAINS_MONO` fonts in app.rs. */
+  --font-sans: "Commissioner", ui-sans-serif, system-ui, sans-serif;
+  /* Only for IDs, addresses and figures: things that are compared digit by digit. */
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
 
-  /*
-   * 400/500 are darker shades for solid fills behind white text; the 300s are
-   * too light for that. Success and warning get dark text instead.
-   */
-  --color-primary-50: #e9f4fa;
-  --color-primary-100: #d4e8f5;
-  --color-primary-200: #7dbbe1;
-  --color-primary-300: #278ecd;
-  --color-primary-400: #1f72a4;
-  --color-primary-500: #195c85;
+  /* The whole type scale. Four sizes, nothing in between. */
+  --text-meta: 0.8125rem;
+  --text-meta--line-height: 1.25rem;
+  --text-base: 0.9375rem;
+  --text-base--line-height: 1.5rem;
+  --text-lead: 1.125rem;
+  --text-lead--line-height: 1.5rem;
+  --text-title: 1.5rem;
+  --text-title--line-height: 2rem;
 
-  --color-success-50: #e8fbed;
-  --color-success-100: #d0f8db;
-  --color-success-200: #24da56;
-  --color-success-300: #0cbd3e;
+  /* Page: the ground, things lying on it, and things pressed into it. */
+  --color-ground: light-dark(#e6eeea, #0b1c1b);
+  --color-surface: light-dark(#f4f8f6, #10292a);
+  --color-sunken: light-dark(#d8e3de, #163536);
+  /* Inside a text field: lighter than what it sits on, so it reads as empty. */
+  --color-field: light-dark(#ffffff, #0b1c1b);
+  --color-line: light-dark(#bccbc5, #24494a);
+  /* Edges of controls; dark enough to find an empty field. */
+  --color-line-strong: light-dark(#6f8a83, #4a7d7a);
 
-  --color-danger-50: #faeae9;
-  --color-danger-100: #f8dedd;
-  --color-danger-200: #e27c75;
-  --color-danger-300: #d23228;
-  --color-danger-400: #b22a22;
-  --color-danger-500: #93231c;
+  --color-ink: light-dark(#0d2523, #e8efe9);
+  --color-ink-muted: light-dark(#3f5d58, #a8c0b9);
+  --color-ink-faint: light-dark(#4f6963, #84a09a);
 
-  --color-warning-50: #fff9e8;
-  --color-warning-100: #fff2d1;
-  --color-warning-200: #ffc634;
-  --color-warning-300: #edaf11;
+  /* The top bar is verdigris in both modes. */
+  --color-shell: light-dark(#0f4a45, #0a3532);
+  --color-shell-raised: light-dark(#17605a, #114943);
+  --color-shell-ink: #e6f1ec;
+  --color-shell-muted: #a9cdc3;
 
-  /* Neutral greys, light (50) to dark (950). */
-  --color-secondary-50: #ffffff;
-  --color-secondary-100: #e5e4ed;
-  --color-secondary-200: #c2c1cc;
-  --color-secondary-300: #aaa9b2;
-  --color-secondary-400: #868491;
-  --color-secondary-500: #4d4e57;
-  --color-secondary-600: #3c3c41;
-  --color-secondary-700: #2b2b2f;
-  --color-secondary-800: #16171a;
-  --color-secondary-900: #0c0c0d;
-  --color-secondary-950: #000000;
+  /* Polished bronze: primary actions and whatever is running. */
+  --color-bronze: light-dark(#c98232, #cd8a3e);
+  --color-bronze-hover: light-dark(#b8721f, #dd9d54);
+  --color-on-bronze: #1b1004;
+  /* Bronze as text has to be darker on a light page than as a fill. */
+  --color-bronze-text: light-dark(#8a4d12, #e2a660);
 
-  /* Use as `animate-fade-in`. */
-  --animate-fade-in: fade-in 1s;
-  @keyframes fade-in {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
+  /* Patina: idle, stopped, left alone. */
+  --color-patina: light-dark(#1f7468, #62b8a8);
+
+  /* Cinnabar: failure, nothing else. Stop and Remove only turn red under
+     the pointer, so a red notice is never one of many red things. */
+  --color-danger: light-dark(#b3351f, #c4452f);
+  --color-on-danger: #ffffff;
+  --color-danger-text: light-dark(#a32b18, #f39480);
+
+  --color-warning-text: light-dark(#7a5a00, #e6c15a);
+
+  /* The heat scale. Only load strips use it; the same in both modes. */
+  --color-heat-1: #4fae9d;
+  --color-heat-2: #c8853a;
+  --color-heat-3: #e6c15a;
+  --color-heat-4: #d0603a;
+  --color-heat-5: #8a5fb8;
+
+  --radius-control: 0.25rem;
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* ==========================================================================
    Base
    ========================================================================== */
 @layer base {
-  /* Makes scrollbars, <select> menus and date pickers dark too. */
+  /* Follows the system unless the theme switch stored a choice (see
+     `set_theme` in app.rs). Also themes scrollbars, <select> menus and date
+     pickers. */
   html {
+    color-scheme: light dark;
+    scrollbar-color: var(--color-line-strong) var(--color-ground);
+  }
+  html[data-theme="light"] {
+    color-scheme: light;
+  }
+  html[data-theme="dark"] {
     color-scheme: dark;
   }
+
   body {
-    @apply bg-secondary-800 text-secondary-200 text-base;
+    @apply bg-ground text-ink text-base font-sans;
+    caret-color: var(--color-bronze-text);
   }
   body:has(.requires-no-scroll) {
     overflow: hidden;
   }
-}
 
-@utility container {
-  @apply w-full px-4 mx-auto md:max-w-3xl lg:max-w-5xl xl:max-w-7xl;
-}
-
-/* ==========================================================================
-   Tones
-   One set of variables per color. Buttons, alerts and badges only read these
-   variables, so each component is written once instead of once per color.
-   ========================================================================== */
-@layer components {
-  /* Default tone, so `.button` etc. without a tone class still look right.
-     `:where()` has zero specificity, so any tone class below overrides it. */
-  :where(.button, .alert, .badge),
-  :is(.button-secondary, .alert-secondary, .badge-secondary) {
-    --tone: var(--color-secondary-600);        /* solid fill */
-    --tone-hover: var(--color-secondary-500);  /* fill on hover */
-    --tone-accent: var(--color-secondary-400); /* dividers, borders on a fill */
-    --tone-on: var(--color-secondary-100);     /* strong text on a fill */
-    --tone-on-muted: var(--color-secondary-200); /* body text on a fill */
-    --tone-text: var(--color-secondary-300);   /* text on the dark page background */
+  ::selection {
+    background: var(--color-bronze);
+    color: var(--color-on-bronze);
   }
 
-  /* Dark fills with light text. */
-  :is(.button-primary, .alert-primary, .badge-primary) {
-    --tone: var(--color-primary-400);
-    --tone-hover: var(--color-primary-500);
-    --tone-accent: var(--color-primary-300);
-    --tone-on: var(--color-primary-50);
-    --tone-on-muted: var(--color-primary-50);
-    --tone-text: var(--color-primary-300);
-  }
-  :is(.button-danger, .alert-danger, .badge-danger) {
-    --tone: var(--color-danger-400);
-    --tone-hover: var(--color-danger-500);
-    --tone-accent: var(--color-danger-300);
-    --tone-on: var(--color-danger-50);
-    --tone-on-muted: var(--color-danger-100);
-    --tone-text: var(--color-danger-200);
+  /* One focus ring for everything, for keyboard users only. */
+  :focus-visible {
+    outline: 2px solid var(--color-bronze-text);
+    outline-offset: 2px;
   }
 
-  /* Bright fills with dark text. */
-  :is(.button-success, .alert-success, .badge-success) {
-    --tone: var(--color-success-300);
-    --tone-hover: var(--color-success-200);
-    --tone-accent: var(--color-success-200);
-    --tone-on: var(--color-secondary-900);
-    --tone-on-muted: var(--color-secondary-800);
-    --tone-text: var(--color-success-300);
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
   }
-  :is(.button-warning, .alert-warning, .badge-warning) {
-    --tone: var(--color-warning-300);
-    --tone-hover: var(--color-warning-200);
-    --tone-accent: var(--color-warning-200);
-    --tone-on: var(--color-secondary-900);
-    --tone-on-muted: var(--color-secondary-800);
-    --tone-text: var(--color-warning-300);
+
+  a {
+    text-underline-offset: 0.2em;
   }
 }
 
 /* ==========================================================================
-   Atoms
+   Layout
    ========================================================================== */
 @layer components {
-  .header {
-    @apply text-xl font-medium text-secondary-300 mb-4;
+  /* Page widths: `.page` for tables, `.page-mid` for settings, `.page-narrow`
+     for a single form. */
+  .page,
+  .page-mid,
+  .page-narrow {
+    @apply w-full mx-auto px-4 sm:px-6 py-8 flex flex-col gap-y-8;
+  }
+  .page {
+    max-width: 84rem;
+  }
+  .page-mid {
+    max-width: 44rem;
+  }
+  .page-narrow {
+    max-width: 26rem;
+    @apply sm:py-16;
   }
 
-  /* Plain text link in a navigation bar */
-  .nav-link {
-    @apply px-3 py-2 rounded-md text-sm font-medium text-secondary-300
-      transition duration-300 hover:bg-secondary-700 hover:text-secondary-50;
+  /* Title, one line about the page, and optionally actions on the right. */
+  .page-head {
+    @apply flex flex-wrap items-end justify-between gap-x-6 gap-y-3;
+  }
+  .page-head h1 {
+    @apply text-title font-semibold;
+  }
+  .page-head p {
+    @apply text-ink-muted;
   }
 
-  /* Button: `.button .button-<tone>`, optionally `.outlined` */
+  .section-title {
+    @apply text-lead font-semibold;
+  }
+
+  .back-link {
+    @apply text-meta text-ink-muted underline decoration-line-strong hover:text-ink;
+  }
+
+  .link {
+    @apply font-medium text-bronze-text underline decoration-transparent
+      transition-colors duration-150 hover:decoration-current;
+  }
+
+  .data .link {
+    @apply font-normal text-ink decoration-line-strong hover:decoration-current;
+  }
+
+  /* Anything compared digit by digit: IDs, addresses, percentages, sizes. */
+  .figure {
+    @apply font-mono text-meta;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* A bordered area for one form or one group of settings. Never nest these. */
+  .panel {
+    @apply p-5 sm:p-6 bg-surface border border-line flex flex-col gap-y-4;
+    border-radius: var(--radius-control);
+  }
+}
+
+/* ==========================================================================
+   Shell: the verdigris bar on every page
+   ========================================================================== */
+@layer components {
+  .shell {
+    @apply bg-shell text-shell-ink;
+  }
+  .shell-inner {
+    @apply mx-auto px-4 sm:px-6 flex flex-wrap items-center gap-x-2 sm:gap-x-8;
+    max-width: 84rem;
+    min-height: 3.5rem;
+  }
+
+  .wordmark {
+    @apply flex items-baseline gap-x-2.5 py-3 sm:py-0 text-lead font-bold text-shell-ink;
+    letter-spacing: -0.01em;
+  }
+  /* The name as the island writes it. Decorative: the link is labelled "Lemnos". */
+  .wordmark-greek {
+    @apply text-meta font-medium text-shell-muted;
+    letter-spacing: 0.16em;
+  }
+
+  .shell-nav {
+    @apply flex items-stretch self-stretch gap-x-1 order-last w-full sm:order-none sm:w-auto;
+  }
+  .shell-nav a {
+    @apply flex items-center px-3 py-2 font-medium text-shell-muted
+      border-b-2 border-transparent transition-colors duration-150 hover:text-shell-ink;
+  }
+  .shell-nav a[aria-current="page"] {
+    @apply text-shell-ink;
+    border-bottom-color: var(--color-bronze);
+  }
+
+  .shell-end {
+    @apply ml-auto flex items-center gap-x-1 sm:gap-x-3;
+  }
+  .shell-end .shell-link {
+    @apply px-2 py-1 font-medium text-shell-muted transition-colors duration-150 hover:text-shell-ink;
+    border-radius: var(--radius-control);
+  }
+  /* Buttons on the bar keep its colors instead of the page's. */
+  .shell .button {
+    @apply bg-shell-raised text-shell-ink border-transparent hover:bg-shell-raised hover:brightness-125;
+  }
+  .shell :focus-visible {
+    outline-color: var(--color-shell-ink);
+  }
+
+  /* System / light / dark: three submit buttons in one form. It sits in the
+     bar on wide screens and in the footer on narrow ones. */
+  .theme-switch {
+    @apply flex p-0.5 bg-sunken;
+    border-radius: var(--radius-control);
+  }
+  .theme-switch button {
+    @apply grid place-items-center w-10 h-10 sm:w-7 sm:h-7 text-ink-muted cursor-pointer
+      transition-colors duration-150 hover:text-ink;
+    border-radius: calc(var(--radius-control) - 1px);
+  }
+  .theme-switch button[aria-pressed="true"] {
+    @apply bg-surface text-ink;
+  }
+  .shell .theme-switch {
+    @apply hidden sm:flex bg-shell-raised;
+  }
+  .shell .theme-switch button {
+    @apply text-shell-muted hover:text-shell-ink;
+  }
+  .shell .theme-switch button[aria-pressed="true"] {
+    @apply bg-shell text-shell-ink;
+  }
+
+  .footer {
+    @apply mx-auto w-full px-4 sm:px-6 py-5 flex items-center justify-between gap-x-4
+      text-meta text-ink-faint;
+    max-width: 84rem;
+  }
+  .footer .theme-switch {
+    @apply sm:hidden;
+  }
+}
+
+/* ==========================================================================
+   Controls
+   ========================================================================== */
+@layer components {
+  /* Button: `.button`, plus `.button-primary` or `.button-danger`, plus `.button-sm` */
   .button {
-    @apply px-3 py-1.5 font-medium cursor-pointer
-      rounded-md border-2 border-transparent
-      outline-4 outline-transparent
-      transition duration-300
-      bg-(--tone) text-(--tone-on);
+    @apply inline-flex items-center justify-center gap-x-2 px-3.5 py-1.5
+      font-medium text-ink bg-sunken border border-line-strong cursor-pointer
+      transition-colors duration-150 hover:bg-line;
+    border-radius: var(--radius-control);
   }
-  .button.outlined {
-    @apply bg-transparent border-(--tone) text-(--tone-text);
+  .button-primary {
+    @apply bg-bronze text-on-bronze border-transparent hover:bg-bronze-hover;
   }
-  .button:is(:hover, :focus-visible, :active) {
-    @apply bg-(--tone-hover) border-(--tone-hover) text-(--tone-on);
+  /* Looks like any other button until it is pointed at or focused. */
+  .button-danger:is(:hover, :focus-visible) {
+    @apply bg-danger text-on-danger border-danger;
   }
-  /* Focus ring only for keyboard users, not after a mouse click. */
-  .button:focus-visible {
-    @apply outline-(--tone)/50;
+  .button-sm {
+    @apply px-2.5 py-0.5 text-meta;
   }
   .button:is([disabled], .disabled) {
-    @apply bg-secondary-600 text-secondary-400 cursor-not-allowed pointer-events-none;
-  }
-  .button.outlined:is([disabled], .disabled) {
-    @apply border-secondary-600;
+    @apply opacity-50 cursor-not-allowed pointer-events-none;
   }
 
-  /* Field label */
+  /* Field: `.field > .label + .input (+ .hint)` */
+  .field {
+    @apply flex flex-col gap-y-1.5;
+  }
   .label {
-    @apply text-sm text-secondary-400 cursor-pointer;
+    @apply text-meta font-medium text-ink-muted;
+  }
+  .hint {
+    @apply text-meta text-ink-faint;
+  }
+  .input {
+    @apply w-full px-3 py-2 bg-field text-ink border border-line-strong
+      transition-colors duration-150 hover:border-ink-faint;
+    border-radius: var(--radius-control);
+  }
+  .input::placeholder {
+    @apply text-ink-faint;
+  }
+  .input:focus-visible {
+    outline-offset: 0;
+    border-color: var(--color-bronze-text);
+  }
+  .input[disabled] {
+    @apply bg-sunken text-ink-faint pointer-events-none;
+  }
+  .input.input-error {
+    @apply border-danger;
   }
 
-  /* Text field: `.input-wrapper` around an input/textarea/select, optional leading svg icon */
-  .input-wrapper {
-    @apply relative flex items-center;
+  /* Native checkbox with a label beside it. */
+  .check {
+    @apply flex items-center gap-x-2.5 cursor-pointer;
   }
-  .input-wrapper > :is(input, textarea, select) {
-    @apply px-3 py-2 rounded-md w-full
-      bg-secondary-600 text-secondary-100
-      border-2 border-secondary-400 outline-none
-      transition duration-300;
-  }
-  .input-wrapper > :is(input, textarea, select):is(:hover, :focus, :active) {
-    @apply border-secondary-300;
-  }
-  .input-wrapper > :is(input, textarea, select):is(:focus, :active) {
-    @apply bg-secondary-500;
-  }
-  .input-wrapper > :is(input, textarea)::placeholder {
-    @apply text-secondary-300;
-  }
-  .input-wrapper > :is(input, textarea, select)[disabled] {
-    @apply border-transparent pointer-events-none text-secondary-300;
-  }
-  .input-wrapper > :is(input, textarea)[disabled]::placeholder {
-    @apply text-secondary-400;
-  }
-  .input-wrapper > svg {
-    @apply absolute left-4 text-secondary-400 pointer-events-none;
-  }
-  .input-wrapper > svg ~ :is(input, textarea, select) {
-    @apply pl-10;
-  }
-  .input-wrapper.input-error > :is(input, textarea, select) {
-    @apply border-danger-300;
-  }
-  .input-wrapper.input-error > svg {
-    @apply text-danger-200;
+  .check input {
+    @apply w-4 h-4 cursor-pointer;
+    accent-color: var(--color-bronze);
   }
 
-  /* Toggle switch: `.toggler > input + .slider > .indicator` */
-  .toggler {
-    @apply relative;
+  /* Notice: a message about what just happened, with a drawn icon first.
+     `.notice-danger`, `.notice-success` or `.notice-warning`. */
+  .notice {
+    @apply flex items-start gap-x-3 px-4 py-3 text-ink border border-line bg-surface;
+    border-radius: var(--radius-control);
   }
-  .toggler > input {
-    @apply absolute w-full h-full opacity-0 z-10 cursor-pointer;
+  .notice svg {
+    @apply shrink-0 mt-0.5 text-ink-muted;
   }
-  .toggler > input:disabled {
-    @apply pointer-events-none;
+  .notice details {
+    @apply mt-1 text-meta text-ink-muted;
   }
-  .toggler .slider {
-    @apply w-10 h-6 p-0.5 rounded-full bg-secondary-600 border-2 border-transparent transition duration-300;
+  .notice summary {
+    @apply cursor-pointer underline decoration-line-strong;
   }
-  .toggler > .slider > .indicator {
-    @apply relative left-0 block h-full aspect-square rounded-full bg-secondary-200 transition-all duration-300;
+  .notice details p {
+    @apply mt-1;
+    overflow-wrap: anywhere;
   }
-  .toggler > input:hover ~ .slider {
-    @apply bg-secondary-500;
+  .notice-danger {
+    border-color: var(--color-danger);
+    background: color-mix(in oklab, var(--color-danger) 10%, var(--color-ground));
   }
-  .toggler > input:focus-visible ~ .slider {
-    @apply border-primary-300;
+  .notice-danger svg {
+    @apply text-danger-text;
   }
-  .toggler > input:checked ~ .slider {
-    @apply bg-primary-300;
+  .notice-success {
+    border-color: var(--color-patina);
+    background: color-mix(in oklab, var(--color-patina) 10%, var(--color-ground));
   }
-  .toggler > input:checked:hover ~ .slider {
-    @apply bg-primary-200;
+  .notice-success svg {
+    @apply text-patina;
   }
-  .toggler > input:checked ~ .slider > .indicator {
-    @apply left-4 bg-secondary-50;
+  .notice-warning {
+    border-color: var(--color-warning-text);
+    background: color-mix(in oklab, var(--color-warning-text) 10%, var(--color-ground));
   }
-  .toggler > input:disabled ~ .slider > .indicator {
-    @apply bg-secondary-400;
-  }
-  .toggler > input:checked:disabled ~ .slider {
-    @apply bg-secondary-600! pointer-events-none;
-  }
-
-  /* Radio and checkbox: `label.radio-input > input + .checkmark` (same for `.checkbox-input`) */
-  :is(.radio-input, .checkbox-input) {
-    @apply relative flex items-center gap-x-1 cursor-pointer;
-  }
-  /* Visually hidden but still focusable with the keyboard. */
-  :is(.radio-input, .checkbox-input) input {
-    @apply absolute w-0 h-0 opacity-0;
-  }
-  :is(.radio-input, .checkbox-input) .checkmark {
-    @apply block w-5 h-5 bg-secondary-600 border-2 border-secondary-500 transition duration-300;
-  }
-  :is(.radio-input, .checkbox-input):is(:hover, :active) .checkmark {
-    @apply border-secondary-400;
-  }
-  :is(.radio-input, .checkbox-input):active .checkmark,
-  :is(.radio-input, .checkbox-input) input:focus-visible ~ .checkmark {
-    @apply border-primary-200;
-  }
-  :is(.radio-input, .checkbox-input) .checkmark::before {
-    @apply absolute content-[''] opacity-0 transition duration-300;
-  }
-  :is(.radio-input, .checkbox-input) input:checked ~ .checkmark {
-    @apply bg-primary-300 border-primary-300;
-  }
-  :is(.radio-input, .checkbox-input):hover input:checked ~ .checkmark {
-    @apply bg-primary-200;
+  .notice-warning svg {
+    @apply text-warning-text;
   }
 
-  .radio-input .checkmark {
-    @apply rounded-full;
+  /* Divider with a word in it, e.g. between ways to sign in. */
+  .or {
+    @apply flex items-center gap-x-3 text-meta text-ink-faint;
   }
-  .radio-input .checkmark::before {
-    @apply block w-2 h-2 top-2 left-1.5 rounded-full;
-  }
-  .radio-input input:checked ~ .checkmark::before {
-    @apply bg-secondary-50 opacity-100;
-  }
-
-  .checkbox-input .checkmark {
-    @apply rounded-md;
-  }
-  .checkbox-input .checkmark::before {
-    @apply w-1.5 h-2.5 left-1.5 top-1.5 border-0 border-b-2 border-r-2 rotate-45;
-  }
-  .checkbox-input input:checked ~ .checkmark::before {
-    @apply border-secondary-50 opacity-100;
-  }
-
-  /* Tooltip with a small arrow; `.tooltip-bottom` points the arrow up */
-  .tooltip {
-    @apply absolute z-40 max-w-md px-2 py-1 rounded-md bg-secondary-500 pointer-events-none transition-opacity duration-300;
-  }
-  .tooltip::after {
-    @apply content-[''] absolute -bottom-2 left-2 border-0 border-l-8 border-r-8 border-t-8 border-x-transparent border-y-secondary-500;
-  }
-  .tooltip.tooltip-bottom::after {
-    @apply border-t-0 border-b-8 bottom-full;
-  }
-
-  /* Badge: `.badge .badge-<tone>`, optionally `.badge-soft` or `.badge-outlined` */
-  .badge {
-    @apply inline-block px-2 py-1 text-sm font-medium rounded border border-transparent
-      bg-(--tone) text-(--tone-on);
-  }
-  .badge.badge-soft {
-    @apply bg-(--tone)/20 text-(--tone-text);
-  }
-  .badge.badge-outlined {
-    @apply bg-transparent border-(--tone) text-(--tone-text);
+  .or::before,
+  .or::after {
+    @apply flex-1 h-px bg-line content-[''];
   }
 }
 
 /* ==========================================================================
-   Molecules
+   Data
    ========================================================================== */
 @layer components {
-  /* Alert: `.alert .alert-<tone>`, optionally `.alert-soft` */
-  .alert {
-    @apply w-full flex items-center justify-between rounded-md py-3 px-4
-      bg-(--tone) text-(--tone-on-muted);
+  /* Table: `.data > table`. Rows are 40px; wide tables scroll sideways.
+     With `.data-stack` and a `data-label` on each <td>, rows become blocks on
+     narrow screens instead. */
+  .data {
+    @apply w-full overflow-x-auto bg-surface border border-line;
+    border-radius: var(--radius-control);
   }
-  .alert :is(.alert-body, .alert-body b, .alert-actions) {
-    @apply flex items-center gap-x-2;
+  .data table {
+    @apply w-full border-collapse;
   }
-  .alert .alert-body :is(svg, b) {
-    @apply text-(--tone-on);
+  .data th {
+    @apply h-9 px-3 text-left text-meta font-medium text-ink-muted whitespace-nowrap
+      border-b border-line-strong;
   }
-  .alert .alert-body b::after {
-    @apply block w-3 h-0.5 content-[''];
+  .data td {
+    @apply h-10 px-3 py-1 whitespace-nowrap;
   }
-  .alert .alert-button {
-    @apply px-2 py-1 border-2 border-(--tone-accent) rounded-full transition duration-300;
+  .data :is(th, td):first-child {
+    @apply pl-4;
   }
-  .alert .alert-button:hover {
-    @apply bg-secondary-50/20;
+  .data :is(th, td):last-child {
+    @apply pr-4;
   }
-  .alert .alert-close {
-    @apply relative ml-2 p-1;
+  .data tbody tr:not(:last-child) {
+    @apply border-b border-line;
   }
-  .alert .alert-close svg {
-    @apply text-xl;
+  .data tbody tr:hover {
+    @apply bg-sunken;
   }
-  .alert .alert-close::before {
-    @apply absolute -left-2 block w-0.5 h-6 content-[''];
+  .data .name {
+    @apply font-medium;
   }
-  .alert .alert-body b::after,
-  .alert .alert-close::before {
-    @apply bg-(--tone-accent);
+  /* A row for something that is not running: its name steps back. */
+  .data tr.idle .name {
+    @apply font-normal text-ink-muted;
   }
-
-  .alert.alert-soft {
-    @apply bg-(--tone)/10 text-(--tone-text);
+  /* Row actions, pushed to the right edge. */
+  .data .actions {
+    @apply flex justify-end gap-x-1.5;
   }
-  .alert.alert-soft .alert-body :is(svg, b) {
-    @apply text-(--tone-text);
-  }
-  .alert.alert-soft .alert-body b::after,
-  .alert.alert-soft .alert-close::before {
-    @apply bg-(--tone-text);
-  }
-  .alert.alert-soft .alert-button {
-    @apply border-(--tone-text);
+  /* The one cell of an empty table. */
+  .data .empty {
+    @apply h-24 text-center text-ink-muted whitespace-normal;
   }
 
-  /* Dropdown menu with a small arrow on top */
-  .dropdown {
-    @apply absolute flex flex-col gap-y-1 max-w-xs p-1 rounded-lg bg-secondary-600 transition-opacity duration-300;
-  }
-  .dropdown::after {
-    @apply content-[''] absolute -top-2 left-2 border-0 border-l-8 border-r-8 border-b-8 border-x-transparent border-y-secondary-600;
-  }
-  .dropdown > :is(a, button) {
-    @apply min-w-28 text-left cursor-pointer;
+  @media (max-width: 74.99rem) {
+    .data-stack thead {
+      @apply sr-only;
+    }
+    /* As many blocks side by side as fit; the rules between them are the
+       blocks' own right and bottom borders, with the outer ones tucked
+       under the frame. */
+    .data-stack table {
+      @apply block -mr-px -mb-px;
+    }
+    .data-stack tbody {
+      @apply grid;
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, 21rem), 1fr));
+    }
+    .data-stack tbody tr {
+      @apply grid grid-cols-2 content-start gap-x-4 px-4 py-3 border-b! border-r border-line;
+    }
+    .data-stack td {
+      @apply h-auto px-0! py-1 whitespace-normal;
+      overflow-wrap: anywhere;
+    }
+    .data-stack td[data-label]::before {
+      @apply block font-sans text-meta text-ink-faint content-[attr(data-label)];
+    }
+    .data-stack td.wide {
+      @apply col-span-2;
+    }
+    /* The name leads each block and needs no label. */
+    .data-stack td.name {
+      @apply col-span-2 -order-1 text-lead;
+    }
+    .data-stack td.name::before {
+      @apply hidden;
+    }
+    /* Strips get the full width, so the scale still lines up block to block. */
+    .data-stack td:has(.heat) {
+      @apply col-span-2;
+    }
+    .data-stack .heat-track {
+      @apply w-auto flex-1;
+    }
+    /* One width for every figure, so every track beside one is the same length. */
+    .data-stack .heat .figure {
+      @apply w-39 text-right;
+    }
+    /* Nothing to say, e.g. the CPU of a stopped machine. */
+    .data-stack td.blank {
+      @apply hidden;
+    }
+    .data-stack .button-sm {
+      @apply min-h-10 px-3.5;
+    }
+    /* The last action, Stop, sits apart from the others. */
+    .data-stack .actions form:last-child:not(:first-child) {
+      @apply ml-auto;
+    }
+
+    /* `.data-machines`: a machine is its name and state on one line, a line
+       of small facts (`td.meta`), then its strips. */
+    .data-machines tbody tr {
+      @apply flex flex-wrap items-center gap-x-3 gap-y-0.5;
+    }
+    .data-machines td[data-label]::before {
+      @apply hidden;
+    }
+    .data-machines td.name {
+      @apply order-first;
+      flex: 1 1 calc(100% - 9rem);
+    }
+    .data-machines td:has(> .state) {
+      @apply -order-1;
+    }
+    .data-machines td.meta {
+      @apply text-meta text-ink-muted;
+    }
+    .data-machines td:has(.heat) {
+      @apply flex items-center gap-x-3 basis-full;
+    }
+    .data-machines td:has(.heat)::before {
+      @apply block w-14 shrink-0;
+    }
+    .data-machines .heat {
+      @apply flex-1;
+    }
+    .data-machines .heat .figure {
+      @apply w-31;
+    }
+    .data-machines td.wide {
+      @apply basis-full;
+    }
+    .data-stack .actions {
+      @apply justify-start flex-wrap gap-x-2 pt-1;
+    }
   }
 
-  /* Table card: `.table > .table-header + table` */
-  .table {
-    @apply w-full rounded-lg bg-secondary-700;
+  /* State: a mark and a word. The marks differ in shape as well as color, so
+     the state survives without color. `.state-running`, `-stopped`,
+     `-paused`, `-template`, `-down`. */
+  .state {
+    @apply inline-flex items-center gap-x-2;
   }
-  .table .table-header {
-    @apply flex items-center justify-between px-5 pt-4;
+  .state::before {
+    @apply block w-2.5 h-2.5 rounded-full border-2 border-current content-[''];
+    flex: none;
   }
-  .table table {
-    @apply w-full;
+  .state-running::before {
+    @apply bg-bronze border-bronze;
   }
-  .table tr > :first-child {
-    @apply pl-5;
+  .state-stopped {
+    @apply text-ink-muted;
   }
-  .table tr > :last-child {
-    @apply pr-5;
+  .state-stopped::before {
+    @apply border-patina;
   }
-  .table :is(thead tr, tbody tr:not(:last-child)) {
-    @apply border-b border-secondary-500;
+  .state-paused::before {
+    border-color: var(--color-warning-text);
+    background: linear-gradient(90deg, var(--color-warning-text) 50%, transparent 50%);
   }
-  .table th {
-    @apply py-2 text-left text-sm font-medium text-secondary-300;
+  .state-template {
+    @apply text-ink-muted;
   }
-  .table td {
-    @apply py-2;
+  .state-template::before {
+    @apply rounded-none border-ink-faint;
+  }
+  .state-down {
+    @apply text-danger-text;
+  }
+  .state-down::before {
+    border-color: var(--color-danger);
+    background: linear-gradient(
+      135deg,
+      transparent 40%,
+      var(--color-danger) 40% 60%,
+      transparent 60%
+    );
+  }
+
+  /* Heat strip: how hard something is working, as `--v` percent of a fixed
+     gradient. The gradient spans the whole track and is only uncovered up to
+     `--v`, so a longer strip is also a hotter one and rows compare by eye.
+     `.heat > .heat-track > span[style="--v: 37%"]` then the figure. */
+  .heat {
+    @apply flex items-center gap-x-2.5;
+  }
+  .heat-track {
+    @apply relative h-2 w-24 min-[90rem]:w-36 shrink-0 overflow-hidden bg-sunken;
+    border-radius: 1px;
+    box-shadow: inset 0 0 0 1px var(--color-line);
+  }
+  .heat-track span {
+    @apply absolute inset-0;
+    background: linear-gradient(
+      90deg,
+      var(--color-heat-1) 0%,
+      var(--color-heat-2) 35%,
+      var(--color-heat-3) 60%,
+      var(--color-heat-4) 82%,
+      var(--color-heat-5) 100%
+    );
+    clip-path: inset(0 calc(100% - var(--v, 0%)) 0 0);
+  }
+  .heat .figure {
+    @apply text-ink-muted whitespace-nowrap;
+  }
+
+  /* The strips draw in once when the page loads. Nothing else moves. */
+  @media (prefers-reduced-motion: no-preference) {
+    .heat-track span {
+      animation: heat-in 0.8s var(--ease-out-expo) both;
+    }
+  }
+  @keyframes heat-in {
+    from {
+      clip-path: inset(0 100% 0 0);
+    }
   }
 }

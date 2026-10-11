@@ -15,6 +15,7 @@ use topcoat::{
 };
 
 use super::{error_code, error_message, sign_in, state};
+use crate::components::notice;
 
 #[query_params(error = bad_request)]
 struct Query {
@@ -25,32 +26,37 @@ struct Query {
 pub async fn page(cx: &Cx) -> Result<impl View> {
     let query = query_params::<Query>(cx)?;
     Ok(view! {
-        <div class="max-w-md mx-auto mt-12 p-8 rounded-lg bg-secondary-700">
-            <h2 class="text-2xl font-bold mb-6 text-center text-secondary-50">"Sign up"</h2>
+        <div class="page-narrow">
+            <h1 class="text-title font-semibold">"Create an account"</h1>
+
             if let Some(code) = &query.error {
-                <p class="mb-4 text-sm text-danger-200">(error_message(code))</p>
+                notice(tone: "danger", message: error_message(code))
             }
+
             if state(cx).allow_sign_up {
-                <form method="post" class="flex flex-col gap-y-4">
-                    <div class="flex flex-col gap-y-1">
+                <form method="post" class="panel">
+                    <div class="field">
                         <label for="username" class="label">"Username"</label>
-                        <div class="input-wrapper">
-                            <input type="text" id="username" name="username" autocomplete="username" required="">
-                        </div>
+                        <input type="text" id="username" name="username" class="input" autocomplete="username" required="">
                     </div>
-                    <div class="flex flex-col gap-y-1">
-                        <label for="password" class="label">"Password (at least 12 characters)"</label>
-                        <div class="input-wrapper">
-                            <input type="password" id="password" name="password" autocomplete="new-password" minlength="12" required="">
-                        </div>
+                    <div class="field">
+                        <label for="password" class="label">"Password"</label>
+                        <input type="password" id="password" name="password" class="input" autocomplete="new-password" minlength="12" aria-describedby="password-hint" required="">
+                        <p id="password-hint" class="hint">"At least 12 characters."</p>
                     </div>
-                    <button type="submit" class="button button-primary w-full mt-2">"Create account"</button>
+                    <button type="submit" class="button button-primary w-full">"Create account"</button>
                 </form>
             } else {
-                <p class="text-secondary-200">
-                    "Creating accounts is turned off. Set allow_sign_up = true in the Lemnos config to enable it."
-                </p>
+                notice(
+                    tone: "info",
+                    message: "Creating accounts is turned off. Set allow_sign_up = true in the Lemnos config to enable it.",
+                )
             }
+
+            <p class="text-ink-muted">
+                "Already have an account? "
+                <a href=(href!(sign_in::page)) class="link">"Sign in"</a>
+            </p>
         </div>
     })
 }
