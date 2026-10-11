@@ -2,7 +2,16 @@
 name = "lemnos-proxmox"
 version.workspace = true
 edition.workspace = true
+publish = false
 
 [dependencies]
 lemnos-core.workspace = true
-tokio = { workspace = true, features = ["sync"] }
+tokio = { workspace = true, features = ["sync", "macros", "rt", "time"] }
+proxmox-api = { version = "0.2.0", features = ["reqwest-client"] }
+# Same 0.13 line as `proxmox-api`, which also picks the TLS backend. Needed to
+# hand it an HTTP client that verifies certificates.
+reqwest = { version = "0.13", default-features = false }
+thiserror = "2"
+
+[dev-dependencies]
+serde_json = "1"
