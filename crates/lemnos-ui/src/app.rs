@@ -16,6 +16,7 @@ use crate::components::{hello, nav_bar};
 
 pub mod account;
 pub mod auth;
+pub mod proxmox;
 
 // Self-hosted (bundled as assets) instead of loaded from Google Fonts.
 // Only these weights/styles are bundled; add more here if the CSS needs them.

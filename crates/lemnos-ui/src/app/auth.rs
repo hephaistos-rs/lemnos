@@ -37,6 +37,7 @@ impl AuthState {
         let database = Database::connect(config.database_url.expose()).await?;
         // Nobody can use these any more; this just tidies up after the last run.
         database.delete_expired_sessions(SystemTime::now()).await?;
+        crate::app::proxmox::sync_config(&database, config.proxmox).await?;
         let mut auth = Auth::new(database, Default::default());
         let ldap = config.ldap.is_some();
         if let Some(ldap) = config.ldap {

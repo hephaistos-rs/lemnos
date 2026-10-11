@@ -93,7 +93,7 @@ impl fmt::Debug for Credentials {
 pub enum Error {
     #[error("could not set up the HTTP client: {0}")]
     Http(#[from] reqwest::Error),
-    #[error("Proxmox rejected the request: {0}")]
+    #[error("the request to Proxmox failed: {0}")]
     Api(#[from] proxmox_api::ReqwestError),
 }
 

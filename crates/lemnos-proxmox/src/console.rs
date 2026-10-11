@@ -52,7 +52,7 @@ pub struct Console {
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("Proxmox rejected the request: {0}")]
+    #[error("the request to Proxmox failed: {0}")]
     Api(#[from] ReqwestError),
     #[error("`{0}` is not a usable Proxmox address")]
     InvalidUrl(String),

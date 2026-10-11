@@ -27,7 +27,7 @@ pub struct Snapshot {
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("Proxmox rejected the request: {0}")]
+    #[error("the request to Proxmox failed: {0}")]
     Api(#[from] ReqwestError),
     #[error("`{0}` is not a valid snapshot name: it can be at most 40 characters")]
     InvalidName(String),

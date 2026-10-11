@@ -31,6 +31,7 @@ pub async fn nav_bar(cx: &Cx) -> Result<impl View> {
             </div>
             <div class="flex items-center gap-x-2">
                 if let Some(user) = &user {
+                    <a href=(href!(crate::app::proxmox::page)) class="nav-link">"Proxmox"</a>
                     <a href=(href!(crate::app::account::page)) class="nav-link">(&user.name)</a>
                     // A form, not a link: signing out changes state, so it must be a POST.
                     <form method="post" action=(href!(crate::app::auth::sign_out::sign_out))>
