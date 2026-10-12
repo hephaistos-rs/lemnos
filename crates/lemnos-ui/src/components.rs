@@ -3,11 +3,19 @@
 use topcoat::{
     Result,
     context::Cx,
+    cookie::{Cookies, cookies},
     router::{href, request::uri},
     view::{View, component, view},
 };
 
-use crate::app::auth::current_user;
+use crate::{
+    access::access,
+    app::{
+        auth::{self, current_user},
+        console::{self, environments, machines, organizations, settings, users},
+        site,
+    },
+};
 
 /// Which theme the visitor picked with the theme switch. `System`
 /// follows the device and is what everyone starts with.
@@ -30,6 +38,13 @@ impl Theme {
         }
     }
 
+    /// The theme stored by the theme switch, or `System` if none was.
+    pub fn current(cx: &Cx) -> Self {
+        cookies(cx)
+            .get(Self::COOKIE)
+            .map_or(Self::System, |cookie| Self::parse(cookie.value()))
+    }
+
     /// The value for the cookie, the form and `<html data-theme>`.
     pub fn name(self) -> &'static str {
         match self {
@@ -44,52 +59,151 @@ fn pressed(on: bool) -> &'static str {
     if on { "true" } else { "false" }
 }
 
-// The verdigris bar on every page: where you are, where you can go, and who
-// you are. `cx` is passed in by Topcoat: call it as `shell_bar(theme: ...)`.
+fn current(on: bool) -> &'static str {
+    if on { "page" } else { "false" }
+}
+
+// The name, with the island's own spelling beside it. `to` is where it leads.
+#[component]
+async fn wordmark(to: String) -> Result<impl View> {
+    Ok(view! {
+        <a href=(to) class="wordmark" aria-label="Lemnos">
+            "Lemnos"
+            <span class="wordmark-greek" aria-hidden="true">"ΛΗΜΝΟΣ"</span>
+        </a>
+    })
+}
+
+// The verdigris bar of the console: where you are, where you can go, whose
+// machines you are looking at, and who you are. `cx` is passed in by
+// Topcoat: call it as `shell_bar(theme: ...)`.
 #[component]
 pub async fn shell_bar(cx: &Cx, theme: Theme) -> Result<impl View> {
-    let user = current_user(cx).await?;
+    let access = access(cx).await?;
     let path = uri(cx).path();
-    let on_environments = path.starts_with("/proxmox");
-    let on_machines = path == "/";
+    // What the user can look at, as (value for the form, name).
+    let mut scopes: Vec<(String, String)> = Vec::new();
+    if access.admin {
+        scopes.push(("all".to_owned(), "Everything".to_owned()));
+    }
+    for membership in &access.memberships {
+        scopes.push((
+            membership.organization.id.0.to_string(),
+            membership.organization.name.clone(),
+        ));
+    }
+    let looking_at = access.scope_choice();
 
     Ok(view! {
         <header class="shell">
             <div class="shell-inner">
-                <a href=(href!(crate::app::home)) class="wordmark" aria-label="Lemnos">
-                    "Lemnos"
-                    <span class="wordmark-greek" aria-hidden="true">"ΛΗΜΝΟΣ"</span>
-                </a>
-                if user.is_some() {
-                    <nav class="shell-nav" aria-label="Main">
+                wordmark(to: href!(machines::page).resolve(cx))
+                <nav class="shell-nav" aria-label="Main">
+                    <a
+                        href=(href!(machines::page))
+                        aria-current=(current(path.starts_with("/machines")))
+                    >
+                        "Machines"
+                    </a>
+                    if access.admin {
                         <a
-                            href=(href!(crate::app::home))
-                            aria-current=(if on_machines { "page" } else { "false" })
-                        >
-                            "Machines"
-                        </a>
-                        <a
-                            href=(href!(crate::app::proxmox::page))
-                            aria-current=(if on_environments { "page" } else { "false" })
+                            href=(href!(environments::page))
+                            aria-current=(current(path.starts_with("/environments")))
                         >
                             "Environments"
                         </a>
-                    </nav>
-                }
+                    }
+                    <a
+                        href=(href!(organizations::page))
+                        aria-current=(current(path.starts_with("/organizations")))
+                    >
+                        "Organisations"
+                    </a>
+                    if access.admin {
+                        <a
+                            href=(href!(users::page))
+                            aria-current=(current(path.starts_with("/users")))
+                        >
+                            "Users"
+                        </a>
+                    }
+                </nav>
+                <div class="shell-end">
+                    // Only worth a menu when there is something to switch to.
+                    if scopes.len() > 1 {
+                        <details class="menu">
+                            <summary aria-label=(format!("Looking at {}. Switch", access.scope_name()))>
+                                (access.scope_name())
+                            </summary>
+                            // Buttons, not links: the choice is stored, so it must be a POST.
+                            <form method="post" action=(href!(console::choose_scope))>
+                                for (value, name) in &scopes {
+                                    <button
+                                        type="submit"
+                                        name="organization"
+                                        value=(value.as_str())
+                                        aria-current=(if *value == looking_at { "true" } else { "false" })
+                                    >
+                                        (name.as_str())
+                                    </button>
+                                }
+                            </form>
+                        </details>
+                    } else if let Some((_, name)) = scopes.first() {
+                        <span class="shell-scope">(name.as_str())</span>
+                    }
+                    theme_switch(theme: theme)
+                    <a href=(href!(settings::account::page)) class="shell-link">(&access.user.name)</a>
+                    // A form, not a link: signing out changes state, so it must be a POST.
+                    <form method="post" action=(href!(auth::sign_out::sign_out))>
+                        <button type="submit" class="button button-sm">"Sign out"</button>
+                    </form>
+                </div>
+            </div>
+        </header>
+    })
+}
+
+// The same bar on the public pages: what Lemnos is, and the way in.
+#[component]
+pub async fn site_bar(cx: &Cx, theme: Theme) -> Result<impl View> {
+    let user = current_user(cx).await?;
+    let path = uri(cx).path();
+
+    Ok(view! {
+        <header class="shell">
+            <div class="shell-inner">
+                wordmark(to: href!(site::home).resolve(cx))
+                <nav class="shell-nav" aria-label="Main">
+                    <a
+                        href=(href!(site::features::page))
+                        aria-current=(current(path.starts_with("/features")))
+                    >
+                        "Features"
+                    </a>
+                </nav>
                 <div class="shell-end">
                     theme_switch(theme: theme)
-                    if let Some(user) = &user {
-                        <a href=(href!(crate::app::account::page)) class="shell-link">(&user.name)</a>
-                        // A form, not a link: signing out changes state, so it must be a POST.
-                        <form method="post" action=(href!(crate::app::auth::sign_out::sign_out))>
-                            <button type="submit" class="button button-sm">"Sign out"</button>
-                        </form>
+                    if user.is_some() {
+                        <a href=(href!(machines::page)) class="button button-sm">"Go to dashboard"</a>
                     } else {
-                        <a href=(href!(crate::app::auth::sign_in::page)) class="button button-sm">"Sign in"</a>
+                        <a href=(href!(auth::sign_in::page)) class="button button-sm">"Sign in"</a>
                     }
                 </div>
             </div>
         </header>
+    })
+}
+
+// The line at the bottom of every page.
+#[component]
+pub async fn footer(theme: Theme) -> Result<impl View> {
+    Ok(view! {
+        <footer class="footer">
+            <p>"Lemnos. Forge your own cloud."</p>
+            // Shown here only on narrow screens; the bar has no room for it there.
+            theme_switch(theme: theme)
+        </footer>
     })
 }
 

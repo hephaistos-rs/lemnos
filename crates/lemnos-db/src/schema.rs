@@ -10,8 +10,12 @@ use sqlx::Row;
 use crate::{Database, Dialect};
 
 /// Step N (counting from 1) takes the schema from version N-1 to N.
-const MIGRATIONS: &[fn(Dialect) -> Vec<String>] =
-    &[accounts_and_sessions, unique_passkeys, proxmox_environments];
+const MIGRATIONS: &[fn(Dialect) -> Vec<String>] = &[
+    accounts_and_sessions,
+    unique_passkeys,
+    proxmox_environments,
+    organizations,
+];
 
 fn accounts_and_sessions(dialect: Dialect) -> Vec<String> {
     // MariaDB/MySQL compare text ignoring case unless told otherwise. IDs
@@ -107,6 +111,54 @@ fn proxmox_environments(dialect: Dialect) -> Vec<String> {
             accept_invalid_certs BIGINT NOT NULL
         ){table_options}"
     )]
+}
+
+/// Organisations, who is in them, which environments each was given, and
+/// the admins of the whole installation.
+fn organizations(dialect: Dialect) -> Vec<String> {
+    // As for the first tables: names compare by bytes on every database.
+    let table_options = match dialect {
+        Dialect::MySql => " DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin",
+        Dialect::Sqlite | Dialect::Postgres => "",
+    };
+    [
+        "CREATE TABLE organizations (
+            id BIGINT NOT NULL PRIMARY KEY,
+            name VARCHAR(64) NOT NULL UNIQUE
+        )",
+        "CREATE TABLE memberships (
+            user_id BIGINT NOT NULL,
+            organization_id BIGINT NOT NULL,
+            role VARCHAR(16) NOT NULL,
+            PRIMARY KEY (user_id, organization_id),
+            FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+            FOREIGN KEY (organization_id) REFERENCES organizations (id) ON DELETE CASCADE
+        )",
+        // `tag` marks the organisation's machines in the environment; empty
+        // means all of them.
+        "CREATE TABLE organization_environments (
+            organization_id BIGINT NOT NULL,
+            environment_id BIGINT NOT NULL,
+            tag VARCHAR(64) NOT NULL,
+            PRIMARY KEY (organization_id, environment_id),
+            FOREIGN KEY (organization_id) REFERENCES organizations (id) ON DELETE CASCADE,
+            FOREIGN KEY (environment_id) REFERENCES proxmox_environments (id) ON DELETE CASCADE
+        )",
+        "CREATE TABLE admins (
+            user_id BIGINT NOT NULL PRIMARY KEY,
+            FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+        )",
+        "CREATE INDEX memberships_organization_id ON memberships (organization_id)",
+    ]
+    .into_iter()
+    .map(|statement| {
+        if statement.starts_with("CREATE TABLE") {
+            format!("{statement}{table_options}")
+        } else {
+            statement.to_owned()
+        }
+    })
+    .collect()
 }
 
 pub(crate) async fn migrate(database: &Database) -> Result<(), sqlx::Error> {

@@ -14,18 +14,31 @@ use topcoat::{
     view::{View, view},
 };
 
-use super::{error_code, error_message, start_session, stash, state, two_factor};
-use crate::components::notice;
+use super::{
+    after_sign_in, error_code, error_message, forget_return, is_local_path, remember_return,
+    start_session, stash, state, two_factor,
+};
+use crate::{access::join_through, components::notice};
 
 #[query_params(error = bad_request)]
 struct Query {
     error: Option<String>,
     notice: Option<String>,
+    // The page to show once signed in; set by the console when it sends a
+    // visitor here.
+    next: Option<String>,
 }
 
 #[page]
 pub async fn page(cx: &Cx) -> Result<impl View> {
     let query = query_params::<Query>(cx)?;
+    match &query.next {
+        Some(next) if is_local_path(next) => remember_return(cx, next)?,
+        // Coming here on their own, a visitor is not on the way anywhere.
+        // A failed attempt comes back with a message and keeps its place.
+        None if query.error.is_none() && query.notice.is_none() => forget_return(cx),
+        _ => {}
+    }
     let state = state(cx);
     let providers: Vec<_> = state.sso.providers().collect();
 
@@ -41,6 +54,9 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
             }
             if query.notice.as_deref() == Some("created") {
                 notice(tone: "success", message: "Account created. You can sign in now.")
+            }
+            if query.notice.as_deref() == Some("password") {
+                notice(tone: "success", message: "Password changed. Sign in again with the new one.")
             }
 
             <div class="panel">
@@ -105,7 +121,9 @@ pub async fn submit(cx: &Cx, Form(input): Form<Credentials>) -> Result<SeeOther>
         .await;
     // Local accounts are tried first. A directory user has no local
     // password, so that fails and the directory gets its turn.
+    let mut through_ldap = false;
     if state.ldap && matches!(result, Err(AuthError::InvalidCredentials)) {
+        through_ldap = true;
         result = state
             .auth
             .login_ldap(
@@ -118,8 +136,11 @@ pub async fn submit(cx: &Cx, Form(input): Form<Credentials>) -> Result<SeeOther>
 
     Ok(see_other(match result {
         Ok(Login::Complete(authenticated)) => {
-            start_session(cx, authenticated).await?;
-            href!(crate::app::home).resolve(cx).to_string()
+            let user = start_session(cx, authenticated).await?;
+            if through_ldap {
+                join_through(cx, &user, "ldap").await?;
+            }
+            after_sign_in(cx)
         }
         Ok(Login::SecondFactor(challenge)) => {
             stash(cx, two_factor::CHALLENGE, SameSite::Lax, challenge)?;

@@ -212,11 +212,18 @@ impl Database {
         &self,
         environment: ProxmoxEnvironmentId,
     ) -> Result<()> {
-        self.query("DELETE FROM proxmox_environments WHERE id = ?")
-            .bind(id(environment))
-            .execute(&self.pool)
-            .await
-            .map_err(store_error)?;
+        // What organisations were given of it goes first; see
+        // `delete_organization` for why this is spelled out.
+        for statement in [
+            "DELETE FROM organization_environments WHERE environment_id = ?",
+            "DELETE FROM proxmox_environments WHERE id = ?",
+        ] {
+            self.query(statement)
+                .bind(id(environment))
+                .execute(&self.pool)
+                .await
+                .map_err(store_error)?;
+        }
         Ok(())
     }
 }

@@ -1,8 +1,9 @@
-// /proxmox/{environment}: what runs on one environment (its nodes, guests
+// /environments/{environment}: what runs on one environment (its nodes, guests
 // and storage), with buttons to power guests on and off.
 //
-//   GET  /proxmox/{environment}         the overview
-//   POST /proxmox/{environment}/power   start, shut down, reboot or stop a guest
+//   GET  /environments/{environment}         the overview, for admins
+//   POST /environments/{environment}/power   start, shut down, reboot or stop a guest;
+//                                            for anyone whose machine it is
 
 use std::time::Duration;
 
@@ -20,14 +21,17 @@ use topcoat::{
     context::Cx,
     router::{
         content::Form,
-        error::{RouterErrorExt, SeeOther, bad_request, see_other},
+        error::{RouterErrorExt, SeeOther, bad_request, forbidden, see_other},
         href, module_param, page, path_param, query_params, route,
     },
     view::{View, component, view},
 };
 
-use super::{connect, database, require_user};
-use crate::components::{heat, notice, problem};
+use super::{connect, database};
+use crate::{
+    access::{access, admin_access},
+    components::{heat, notice, problem},
+};
 
 module_param!(pub environment: u64, error = not_found);
 
@@ -110,7 +114,9 @@ pub struct Overview {
     pub storages: Vec<Storage>,
 }
 
-pub async fn overview(client: &Client) -> std::result::Result<Overview, lemnos_proxmox::client::Error> {
+pub async fn overview(
+    client: &Client,
+) -> std::result::Result<Overview, lemnos_proxmox::client::Error> {
     let (nodes, guests, storages) = tokio::join!(
         nodes::list(client),
         guests::list(client),
@@ -230,7 +236,7 @@ pub async fn power_buttons(environment: u64, guest: &Guest, back: &str) -> Resul
 
 #[page]
 pub async fn page(cx: &Cx) -> Result<impl View> {
-    require_user(cx).await?;
+    admin_access(cx).await?;
     let query = query_params::<Query>(cx)?;
     let environment = stored(cx).await?;
     let id = environment.id.0;
@@ -448,8 +454,19 @@ pub struct PowerForm {
 
 #[route(POST "./power")]
 pub async fn power(cx: &Cx, Form(input): Form<PowerForm>) -> Result<SeeOther> {
-    require_user(cx).await?;
+    let access = access(cx).await?;
     let environment = stored(cx).await?;
+    // The environment has to be one the user sees, and they have to be
+    // more than a viewer.
+    let visible = access
+        .visible(database(cx))
+        .await?
+        .into_iter()
+        .find(|visible| visible.environment.id == environment.id)
+        .ok_or_forbidden()?;
+    if !access.can_operate() {
+        return Err(forbidden().into());
+    }
     let guest = GuestId {
         node: input.node,
         vmid: VmId::try_from(i128::from(input.vmid))
@@ -465,6 +482,19 @@ pub async fn power(cx: &Cx, Form(input): Form<PowerForm>) -> Result<SeeOther> {
         let client = connect(&environment)
             .await
             .map_err(|error| error.to_string())?;
+        // The form names the machine, so it is checked against the list:
+        // only one that carries the organisation's tag may be touched.
+        if visible.tag.is_some() {
+            let known = guests::list(&client)
+                .await
+                .map_err(|error| error.to_string())?;
+            if !known
+                .iter()
+                .any(|known| known.id == guest && visible.shows(known))
+            {
+                return Err("that machine does not belong to your organisation".to_owned());
+            }
+        }
         let started = match input.action.as_str() {
             "start" => guests::start(&client, &guest).await,
             "shutdown" => guests::shutdown(&client, &guest).await,
@@ -500,7 +530,9 @@ pub async fn power(cx: &Cx, Form(input): Form<PowerForm>) -> Result<SeeOther> {
     };
     // Back to the page the button was on.
     Ok(see_other(if input.back.as_deref() == Some("machines") {
-        href!(crate::app::home).query(outcome).resolve(cx)
+        href!(super::super::machines::page)
+            .query(outcome)
+            .resolve(cx)
     } else {
         href!(page, Environment(environment.id.0))
             .query(outcome)
