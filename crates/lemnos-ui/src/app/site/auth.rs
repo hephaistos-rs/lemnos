@@ -201,7 +201,13 @@ const RETURN_TO: &str = "return-to";
 
 /// Whether `path` is a page of this site, and not a way to another one.
 pub fn is_local_path(path: &str) -> bool {
-    path.starts_with('/') && !path.starts_with("//") && !path.contains('\\')
+    // Browsers read a backslash as a slash and drop tabs and line breaks,
+    // so those could turn a harmless-looking path into `//example.com`.
+    path.starts_with('/')
+        && !path.starts_with("//")
+        && !path
+            .chars()
+            .any(|character| character == '\\' || character.is_control())
 }
 
 pub fn remember_return(cx: &Cx, path: &str) -> Result<()> {
@@ -231,6 +237,8 @@ mod tests {
         assert!(!is_local_path("https://example.com/"));
         assert!(!is_local_path("//example.com/"));
         assert!(!is_local_path(r"/\example.com"));
+        assert!(!is_local_path("/\t/example.com"));
+        assert!(!is_local_path("/\n/example.com"));
         assert!(!is_local_path("machines"));
     }
 }
