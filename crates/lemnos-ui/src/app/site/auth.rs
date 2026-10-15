@@ -30,6 +30,8 @@ pub struct AuthState {
     pub allow_sign_up: bool,
     pub ldap: bool,
     pub passkeys: bool,
+    /// Environments the config file declares, by name. Read-only in the UI.
+    pub managed_environments: Vec<String>,
     auto_provision: Vec<String>,
     // Which sign-in provider leads into which organisation.
     joins: Vec<(String, OrganizationId)>,
@@ -40,7 +42,8 @@ impl AuthState {
         let database = Database::connect(config.database_url.expose()).await?;
         // Nobody can use these any more; this just tidies up after the last run.
         database.delete_expired_sessions(SystemTime::now()).await?;
-        crate::app::console::environments::sync_config(&database, config.proxmox).await?;
+        let managed_environments =
+            crate::app::console::environments::sync_config(&database, config.proxmox).await?;
         let mut auth = Auth::new(database, Default::default());
         let ldap = config.ldap.is_some();
         if let Some(ldap) = config.ldap {
@@ -59,6 +62,7 @@ impl AuthState {
             allow_sign_up: config.allow_sign_up,
             ldap,
             passkeys,
+            managed_environments,
             auto_provision: config.auto_provision,
             joins,
         })

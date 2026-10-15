@@ -10,7 +10,10 @@ use lemnos_db::{
     Database, NewProxmoxEnvironment, ProxmoxEnvironment, ProxmoxEnvironmentId, ProxmoxLogin,
     ProxmoxStoreError,
 };
-use lemnos_proxmox::client::{Client, Credentials, Endpoint};
+use lemnos_proxmox::{
+    client::{Client, Credentials, Endpoint},
+    token::{self, TokenIdError},
+};
 use serde::Deserialize;
 use topcoat::{
     Result,
@@ -20,7 +23,7 @@ use topcoat::{
         error::{SeeOther, see_other},
         href, page, query_params, route,
     },
-    view::{View, view},
+    view::{View, component, view},
 };
 
 use crate::{access::admin_access, app::auth::state, components::notice, config::ProxmoxConfig};
@@ -53,28 +56,78 @@ pub async fn connect(
     lemnos_proxmox::client::connect(&endpoint, &credentials).await
 }
 
+/// Who signs in, and how: the user, realm and login, from what was entered.
+///
+/// `token_id` is empty for a password login. Otherwise it is the token's
+/// name or the full ID Proxmox shows (`root@pam!lemnos`), which may leave
+/// `user` and `realm` empty; see [`token::split`].
+pub fn login_from(
+    token_id: &str,
+    user: &str,
+    realm: &str,
+    secret: String,
+) -> std::result::Result<(String, String, ProxmoxLogin), TokenIdError> {
+    if token_id.trim().is_empty() {
+        let (user, realm) = (user.trim(), realm.trim());
+        if user.is_empty() {
+            return Err(TokenIdError::MissingUser);
+        }
+        if realm.is_empty() {
+            return Err(TokenIdError::MissingRealm);
+        }
+        return Ok((
+            user.to_owned(),
+            realm.to_owned(),
+            ProxmoxLogin::Password(secret),
+        ));
+    }
+    let owner = token::split(token_id, user, realm)?;
+    Ok((
+        owner.user,
+        owner.realm,
+        ProxmoxLogin::ApiToken {
+            id: owner.name,
+            secret,
+        },
+    ))
+}
+
+/// The `?error=` code for a token ID or user that doesn't add up.
+pub fn token_error_code(error: &TokenIdError) -> &'static str {
+    match error {
+        TokenIdError::Empty | TokenIdError::MissingUser | TokenIdError::MissingRealm => "owner",
+        TokenIdError::UserConflict { .. } => "token-user",
+        TokenIdError::RealmConflict { .. } => "token-realm",
+        TokenIdError::ExtraSeparator
+        | TokenIdError::MissingName
+        | TokenIdError::UserOnly(_)
+        | TokenIdError::BadName => "token",
+    }
+}
+
 /// Writes the environments from the config file to the database: new names
-/// are added, and known ones are made to match the file again.
+/// are added, and known ones are made to match the file again. Returns the
+/// names it wrote: those are the file's to change, not the UI's.
 pub async fn sync_config(
     database: &Database,
     configured: Vec<ProxmoxConfig>,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<Vec<String>, Box<dyn Error>> {
     let stored = database.proxmox_environments().await?;
+    let mut managed = Vec::new();
     for entry in configured {
-        let login = match (entry.token_id, entry.token_secret, entry.password) {
-            (Some(id), Some(secret), None) => ProxmoxLogin::ApiToken {
-                id,
-                secret: secret.expose().to_owned(),
-            },
-            (None, None, Some(password)) => ProxmoxLogin::Password(password.expose().to_owned()),
+        let invalid = |problem: &dyn std::fmt::Display| {
+            format!("proxmox environment `{}`: {problem}", entry.name)
+        };
+        let (token_id, secret) = match (&entry.token_id, entry.token_secret, entry.password) {
+            (Some(id), Some(secret), None) => (id.as_str(), secret.expose().to_owned()),
+            (None, None, Some(password)) => ("", password.expose().to_owned()),
             _ => {
-                return Err(format!(
-                    "proxmox environment `{}`: set either token_id and token_secret, or password",
-                    entry.name
-                )
-                .into());
+                return Err(invalid(&"set either token_id and token_secret, or password").into());
             }
         };
+        let (user, realm, login) = login_from(token_id, &entry.user, &entry.realm, secret)
+            .map_err(|error| invalid(&error))?;
+        managed.push(entry.name.clone());
         match stored.iter().find(|known| known.name == entry.name) {
             Some(known) => {
                 database
@@ -82,8 +135,8 @@ pub async fn sync_config(
                         id: known.id,
                         name: entry.name,
                         url: entry.url,
-                        user: entry.user,
-                        realm: entry.realm,
+                        user,
+                        realm,
                         login,
                         accept_invalid_certs: entry.accept_invalid_certs,
                     })
@@ -94,8 +147,8 @@ pub async fn sync_config(
                     .create_proxmox_environment(NewProxmoxEnvironment {
                         name: entry.name,
                         url: entry.url,
-                        user: entry.user,
-                        realm: entry.realm,
+                        user,
+                        realm,
                         login,
                         accept_invalid_certs: entry.accept_invalid_certs,
                     })
@@ -103,7 +156,7 @@ pub async fn sync_config(
             }
         }
     }
-    Ok(())
+    Ok(managed)
 }
 
 #[query_params(error = bad_request)]
@@ -111,11 +164,30 @@ struct Query {
     error: Option<String>,
 }
 
-fn error_message(code: &str) -> &'static str {
+/// What a `?error=` code from the add or edit form means.
+pub fn error_message(code: &str) -> &'static str {
     match code {
         "name" => "Another environment already has that name.",
         "url" => "The address has to start with https:// or http://.",
-        _ => "Fill in every field except the token name.",
+        "owner" => {
+            "Fill in the user and realm, or give the full API token ID, like root@pam!lemnos."
+        }
+        "token" => {
+            "That API token ID doesn't look right. Give it the way Proxmox shows it, like root@pam!lemnos, or just the part after the !."
+        }
+        "token-user" => {
+            "The user in the API token ID isn't the one in the User field. Make them match, or leave User empty."
+        }
+        "token-realm" => {
+            "The realm in the API token ID isn't the one in the Realm field. Make them match, or leave Realm empty."
+        }
+        "secret" => {
+            "Enter the secret again: the one Lemnos has belongs to the user or token you changed."
+        }
+        "managed" => {
+            "This environment is managed by the config file. Change it there; Lemnos reads the file again when it starts."
+        }
+        _ => "Fill in the name, the address and the secret.",
     }
 }
 
@@ -127,13 +199,170 @@ fn back(cx: &Cx, error: Option<&str>) -> String {
     }
 }
 
+pub fn valid_url(url: &str) -> bool {
+    url.starts_with("https://") || url.starts_with("http://")
+}
+
 /// How the environment signs in, in words.
 fn signs_in_as(environment: &ProxmoxEnvironment) -> String {
     let user = format!("{}@{}", environment.user, environment.realm);
     match &environment.login {
-        ProxmoxLogin::ApiToken { id, .. } => format!("{user} with API token {id}"),
+        ProxmoxLogin::ApiToken { id, .. } => format!("API token {user}!{id}"),
         ProxmoxLogin::Password(_) => format!("{user} with a password"),
     }
+}
+
+/// Whether the config file declares this environment. Sync on start would
+/// overwrite changes made here, so those are read-only in the UI.
+pub fn managed_by_config(cx: &Cx, environment: &ProxmoxEnvironment) -> bool {
+    state(cx)
+        .managed_environments
+        .contains(&environment.name)
+}
+
+/// What the add and edit forms start out with. Never holds a secret.
+#[derive(Default)]
+pub struct Fields {
+    pub name: String,
+    pub url: String,
+    pub user: String,
+    pub realm: String,
+    /// In the full form Proxmox shows, so it reads the same as there.
+    pub token_id: String,
+    pub accept_invalid_certs: bool,
+    /// Editing a stored environment: the secret may be left empty.
+    pub editing: bool,
+}
+
+impl Fields {
+    pub fn of(environment: &ProxmoxEnvironment) -> Self {
+        Self {
+            name: environment.name.clone(),
+            url: environment.url.clone(),
+            user: environment.user.clone(),
+            realm: environment.realm.clone(),
+            token_id: match &environment.login {
+                ProxmoxLogin::ApiToken { id, .. } => {
+                    format!("{}@{}!{id}", environment.user, environment.realm)
+                }
+                ProxmoxLogin::Password(_) => String::new(),
+            },
+            accept_invalid_certs: environment.accept_invalid_certs,
+            editing: true,
+        }
+    }
+}
+
+// The fields of the add and edit forms, without the form and its button.
+#[component]
+pub async fn environment_fields(fields: &Fields) -> Result<impl View> {
+    let secret_hint = if fields.editing {
+        "Leave empty to keep the current one. It isn't shown again once saved."
+    } else {
+        "The token's secret, or the user's password."
+    };
+    Ok(view! {
+        <div class="field">
+            <label for="name" class="label">"Name"</label>
+            <input
+                type="text"
+                id="name"
+                name="name"
+                class="input"
+                maxlength="64"
+                placeholder="e.g. Lab"
+                value=(fields.name.as_str())
+                required=""
+            >
+        </div>
+        <div class="field">
+            <label for="url" class="label">"Address"</label>
+            <input
+                type="url"
+                id="url"
+                name="url"
+                class="input"
+                maxlength="255"
+                placeholder="https://pve.example.com:8006"
+                value=(fields.url.as_str())
+                required=""
+            >
+        </div>
+        <div class="field">
+            <label for="token_id" class="label">"API token ID"</label>
+            <input
+                type="text"
+                id="token_id"
+                name="token_id"
+                class="input"
+                maxlength="200"
+                placeholder="root@pam!lemnos"
+                value=(fields.token_id.as_str())
+                autocomplete="off"
+            >
+            <p class="hint">
+                "As Proxmox shows it under Datacenter > Permissions > API Tokens, e.g. root@pam!lemnos. Leave empty to sign in with a password instead."
+            </p>
+        </div>
+        <div class="grid grid-cols-2 gap-x-4">
+            <div class="field">
+                <label for="user" class="label">"User"</label>
+                <input
+                    type="text"
+                    id="user"
+                    name="user"
+                    class="input"
+                    maxlength="64"
+                    placeholder="root"
+                    value=(fields.user.as_str())
+                    autocomplete="off"
+                >
+            </div>
+            <div class="field">
+                <label for="realm" class="label">"Realm"</label>
+                <input
+                    type="text"
+                    id="realm"
+                    name="realm"
+                    class="input"
+                    maxlength="32"
+                    placeholder="pam"
+                    value=(fields.realm.as_str())
+                >
+            </div>
+        </div>
+        <p class="hint -mt-2">"Only needed for a password, or a token ID without the part before the !."</p>
+        <div class="field">
+            <label for="secret" class="label">"Secret"</label>
+            if fields.editing {
+                <input
+                    type="password"
+                    id="secret"
+                    name="secret"
+                    class="input"
+                    autocomplete="off"
+                >
+            } else {
+                <input
+                    type="password"
+                    id="secret"
+                    name="secret"
+                    class="input"
+                    autocomplete="off"
+                    required=""
+                >
+            }
+            <p class="hint">(secret_hint)</p>
+        </div>
+        <label class="check">
+            if fields.accept_invalid_certs {
+                <input type="checkbox" name="accept_invalid_certs" value="on" checked="">
+            } else {
+                <input type="checkbox" name="accept_invalid_certs" value="on">
+            }
+            "Accept a self-signed certificate"
+        </label>
+    })
 }
 
 #[page]
@@ -142,6 +371,7 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
     let query = query_params::<Query>(cx)?;
     let environments = database(cx).proxmox_environments().await?;
     let personal = database(cx).personal_environment().await?;
+    let blank = Fields::default();
 
     Ok(view! {
         <div class="page">
@@ -163,7 +393,7 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
                                     <th>"Provider"</th>
                                     <th>"Address"</th>
                                     <th>"Signs in as"</th>
-                                    <th><span class="sr-only">"Remove"</span></th>
+                                    <th><span class="sr-only">"Actions"</span></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -195,6 +425,19 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
                                         <td data-label="Signs in as">(signs_in_as(known))</td>
                                         <td class="wide">
                                             <div class="actions">
+                                                if managed_by_config(cx, known) {
+                                                    <span class="text-meta text-ink-faint">"Managed by config file"</span>
+                                                } else {
+                                                    <a
+                                                        href=(href!(
+                                                            environment::edit::page,
+                                                            environment::Environment(known.id.0),
+                                                        ))
+                                                        class="button button-sm"
+                                                    >
+                                                        "Edit"
+                                                    </a>
+                                                }
                                                 <form method="post" action=(href!(remove))>
                                                     <input
                                                         type="hidden"
@@ -252,86 +495,7 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
                         notice(tone: "danger", message: error_message(code))
                     }
                     <form method="post" class="flex flex-col gap-y-4">
-                        <div class="field">
-                            <label for="name" class="label">"Name"</label>
-                            <input
-                                type="text"
-                                id="name"
-                                name="name"
-                                class="input"
-                                maxlength="64"
-                                placeholder="e.g. Lab"
-                                required=""
-                            >
-                        </div>
-                        <div class="field">
-                            <label for="url" class="label">"Address"</label>
-                            <input
-                                type="url"
-                                id="url"
-                                name="url"
-                                class="input"
-                                maxlength="255"
-                                placeholder="https://pve.example.com:8006"
-                                required=""
-                            >
-                        </div>
-                        <div class="grid grid-cols-2 gap-x-4">
-                            <div class="field">
-                                <label for="user" class="label">"User"</label>
-                                <input
-                                    type="text"
-                                    id="user"
-                                    name="user"
-                                    class="input"
-                                    maxlength="64"
-                                    placeholder="root"
-                                    autocomplete="off"
-                                    required=""
-                                >
-                            </div>
-                            <div class="field">
-                                <label for="realm" class="label">"Realm"</label>
-                                <input
-                                    type="text"
-                                    id="realm"
-                                    name="realm"
-                                    class="input"
-                                    maxlength="32"
-                                    placeholder="pam"
-                                    required=""
-                                >
-                            </div>
-                        </div>
-                        <div class="field">
-                            <label for="token_id" class="label">"API token name"</label>
-                            <input
-                                type="text"
-                                id="token_id"
-                                name="token_id"
-                                class="input"
-                                maxlength="64"
-                                placeholder="lemnos"
-                                autocomplete="off"
-                            >
-                            <p class="hint">"Leave empty to sign in with the user's password."</p>
-                        </div>
-                        <div class="field">
-                            <label for="secret" class="label">"Secret"</label>
-                            <input
-                                type="password"
-                                id="secret"
-                                name="secret"
-                                class="input"
-                                autocomplete="off"
-                                required=""
-                            >
-                            <p class="hint">"The token's secret, or the user's password."</p>
-                        </div>
-                        <label class="check">
-                            <input type="checkbox" name="accept_invalid_certs" value="on">
-                            "Accept a self-signed certificate"
-                        </label>
+                        environment_fields(fields: &blank)
                         <button type="submit" class="button button-primary self-start">
                             "Add environment"
                         </button>
@@ -359,29 +523,24 @@ pub async fn add(cx: &Cx, Form(input): Form<NewEnvironmentForm>) -> Result<SeeOt
     admin_access(cx).await?;
     let name = input.name.trim();
     let url = input.url.trim();
-    let user = input.user.trim();
-    let realm = input.realm.trim();
-    let token_id = input.token_id.trim();
-    if [name, url, user, realm].contains(&"") || input.secret.is_empty() {
+    if [name, url].contains(&"") || input.secret.is_empty() {
         return Ok(see_other(back(cx, Some("fields"))));
     }
-    if !url.starts_with("https://") && !url.starts_with("http://") {
+    if !valid_url(url) {
         return Ok(see_other(back(cx, Some("url"))));
     }
+    let (user, realm, login) =
+        match login_from(&input.token_id, &input.user, &input.realm, input.secret) {
+            Ok(login) => login,
+            Err(error) => return Ok(see_other(back(cx, Some(token_error_code(&error))))),
+        };
 
     let new = NewProxmoxEnvironment {
         name: name.to_owned(),
         url: url.to_owned(),
-        user: user.to_owned(),
-        realm: realm.to_owned(),
-        login: if token_id.is_empty() {
-            ProxmoxLogin::Password(input.secret)
-        } else {
-            ProxmoxLogin::ApiToken {
-                id: token_id.to_owned(),
-                secret: input.secret,
-            }
-        },
+        user,
+        realm,
+        login,
         accept_invalid_certs: input.accept_invalid_certs.is_some(),
     };
     Ok(see_other(
@@ -430,4 +589,42 @@ pub async fn remove(cx: &Cx, Form(input): Form<RemoveForm>) -> Result<SeeOther> 
         .delete_proxmox_environment(ProxmoxEnvironmentId(input.id))
         .await?;
     Ok(see_other(back(cx, None)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_full_token_id_fills_in_user_and_realm() {
+        let (user, realm, login) = login_from("root@pam!lemnos", "", "", "s".into()).unwrap();
+        assert_eq!((user.as_str(), realm.as_str()), ("root", "pam"));
+        assert_eq!(
+            login,
+            ProxmoxLogin::ApiToken {
+                id: "lemnos".into(),
+                secret: "s".into()
+            }
+        );
+        // Stored the way it always was, so older rows read the same.
+        let (_, _, short) = login_from("lemnos", "root", "pam", "s".into()).unwrap();
+        assert_eq!(short, login);
+    }
+
+    #[test]
+    fn a_password_login_needs_user_and_realm() {
+        assert!(matches!(
+            login_from("", "root", "pam", "pw".into()),
+            Ok((_, _, ProxmoxLogin::Password(_)))
+        ));
+        let missing = login_from("", "", "pam", "pw".into()).unwrap_err();
+        assert_eq!(token_error_code(&missing), "owner");
+    }
+
+    #[test]
+    fn a_conflict_gets_its_own_message() {
+        let conflict = login_from("root@pam!lemnos", "root", "pve", "s".into()).unwrap_err();
+        assert_eq!(token_error_code(&conflict), "token-realm");
+        assert!(error_message("token-realm").contains("realm"));
+    }
 }
