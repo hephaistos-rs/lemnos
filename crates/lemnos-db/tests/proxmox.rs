@@ -127,7 +127,8 @@ async fn exercise(database: &Database) {
         .unwrap();
     let edit = ProxmoxEnvironmentEdit {
         name: unique("kept-renamed"),
-        url: "https://10.0.0.6:8006".into(),
+        // Same address; checking certificates again is stricter, so fine.
+        url: "https://pve.example.com:8006".into(),
         user: "root".into(),
         realm: "pam".into(),
         token_id: Some("lemnos".into()),
@@ -148,8 +149,17 @@ async fn exercise(database: &Database) {
         Some(edited.clone())
     );
 
-    // A different token, user or way of signing in needs its own secret.
+    // A different token, user, way of signing in or address needs the
+    // secret again, and so does no longer checking the certificate.
     for changed in [
+        ProxmoxEnvironmentEdit {
+            url: "https://elsewhere.example.com:8006".into(),
+            ..edit.clone()
+        },
+        ProxmoxEnvironmentEdit {
+            accept_invalid_certs: true,
+            ..edit.clone()
+        },
         ProxmoxEnvironmentEdit {
             token_id: Some("other".into()),
             ..edit.clone()

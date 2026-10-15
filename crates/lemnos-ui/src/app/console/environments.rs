@@ -182,7 +182,7 @@ pub fn error_message(code: &str) -> &'static str {
             "The realm in the API token ID isn't the one in the Realm field. Make them match, or leave Realm empty."
         }
         "secret" => {
-            "Enter the secret again: the one Lemnos has belongs to the user or token you changed."
+            "Enter the secret again. Lemnos asks for it when the address, user or token changes, or when you turn on accepting a self-signed certificate, so it is never sent somewhere new without you."
         }
         "managed" => {
             "This environment is managed by the config file. Change it there; Lemnos reads the file again when it starts."
@@ -215,9 +215,7 @@ fn signs_in_as(environment: &ProxmoxEnvironment) -> String {
 /// Whether the config file declares this environment. Sync on start would
 /// overwrite changes made here, so those are read-only in the UI.
 pub fn managed_by_config(cx: &Cx, environment: &ProxmoxEnvironment) -> bool {
-    state(cx)
-        .managed_environments
-        .contains(&environment.name)
+    state(cx).managed_environments.contains(&environment.name)
 }
 
 /// What the add and edit forms start out with. Never holds a secret.
@@ -257,7 +255,7 @@ impl Fields {
 #[component]
 pub async fn environment_fields(fields: &Fields) -> Result<impl View> {
     let secret_hint = if fields.editing {
-        "Leave empty to keep the current one. It isn't shown again once saved."
+        "Leave empty to keep the current one, unless you change the address, user or token. It isn't shown again once saved."
     } else {
         "The token's secret, or the user's password."
     };

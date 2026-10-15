@@ -76,8 +76,11 @@ pub struct ProxmoxEnvironmentEdit {
     pub realm: String,
     /// The token's name, or `None` to sign in with a password.
     pub token_id: Option<String>,
-    /// `None` keeps the stored secret. That is only allowed while it still
-    /// belongs to the same login: the same user, realm and token.
+    /// `None` keeps the stored secret. That is only allowed while it would
+    /// go to the same place for the same login: the same address, user,
+    /// realm and token, and certificates checked at least as strictly.
+    /// Otherwise whoever edits could have the secret sent to a server of
+    /// their own, though Lemnos never shows it to them.
     pub secret: Option<String>,
     pub accept_invalid_certs: bool,
 }
@@ -103,9 +106,9 @@ pub enum ProxmoxStoreError {
     NameTaken,
     #[error("there is no such environment")]
     NotFound,
-    /// The secret was left out while the user, realm or token changed, so
-    /// the stored one would not belong to the new login.
-    #[error("the login changed, so it needs its secret again")]
+    /// The secret was left out while the address, user, realm or token
+    /// changed, or certificate checks were turned off.
+    #[error("the login or address changed, so it needs its secret again")]
     SecretNeeded,
     #[error("the database failed")]
     Backend(#[source] sqlx::Error),
@@ -259,9 +262,11 @@ impl Database {
                     ProxmoxLogin::ApiToken { id, .. } => Some(id),
                     ProxmoxLogin::Password(_) => None,
                 };
-                let same_login = current.user == edit.user
+                let same_login = current.url == edit.url
+                    && current.user == edit.user
                     && current.realm == edit.realm
-                    && current_token == edit.token_id.as_ref();
+                    && current_token == edit.token_id.as_ref()
+                    && (current.accept_invalid_certs || !edit.accept_invalid_certs);
                 if !same_login {
                     return Err(ProxmoxStoreError::SecretNeeded);
                 }
