@@ -215,6 +215,7 @@ impl Database {
         // What organisations were given of it goes first; see
         // `delete_organization` for why this is spelled out.
         for statement in [
+            "DELETE FROM machines WHERE environment_id = ?",
             "DELETE FROM organization_environments WHERE environment_id = ?",
             "DELETE FROM proxmox_environments WHERE id = ?",
         ] {

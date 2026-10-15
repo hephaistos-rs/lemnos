@@ -18,7 +18,7 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
     let access = access(cx).await?;
     let looking_at = match &access.scope {
         Scope::Organization(membership) => Some(membership.organization.id),
-        Scope::Everything | Scope::Nothing => None,
+        Scope::Everything | Scope::Personal => None,
     };
 
     Ok(view! {
@@ -57,7 +57,7 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
                 <h2 class="section-title">"Organisations"</h2>
                 if access.memberships.is_empty() {
                     <p class="text-ink-muted max-w-[65ch]">
-                        "You are not in an organisation yet. An admin or an organisation's owner can add you; they need your username."
+                        "You are not in an organisation yet, so you have your personal machine only. An admin or an organisation's owner can add you; they need your username."
                     </p>
                 } else {
                     <dl class="facts">

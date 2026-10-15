@@ -21,7 +21,7 @@ use topcoat::{
     context::Cx,
     router::{
         content::Form,
-        error::{RouterErrorExt, SeeOther, bad_request, forbidden, see_other},
+        error::{RouterErrorExt, SeeOther, bad_request, see_other},
         href, module_param, page, path_param, query_params, route,
     },
     view::{View, component, view},
@@ -72,6 +72,11 @@ struct Outcome<'a> {
 /// "done", or anything else while it is still under way.
 pub fn power_notice(code: &str, action: Option<&str>, machine: Option<&str>) -> String {
     let machine = machine.unwrap_or("The machine");
+    if action == Some("create") && code != "done" {
+        return format!(
+            "{machine} is still being copied. It shows up locked until that is done; reload in a minute."
+        );
+    }
     if code != "done" {
         return format!(
             "{machine} is taking longer than usual. Reload in a moment to see the result."
@@ -83,6 +88,8 @@ pub fn power_notice(code: &str, action: Option<&str>, machine: Option<&str>) -> 
         Some("reboot") => format!("{machine} was rebooted."),
         Some("shutdown") => format!("{machine} was shut down."),
         Some("stop") => format!("{machine} was stopped."),
+        Some("create") => format!("{machine} was created. Start it when you need it."),
+        Some("delete") => format!("{machine} was deleted."),
         _ => format!("{machine} was updated."),
     }
 }
@@ -456,17 +463,14 @@ pub struct PowerForm {
 pub async fn power(cx: &Cx, Form(input): Form<PowerForm>) -> Result<SeeOther> {
     let access = access(cx).await?;
     let environment = stored(cx).await?;
-    // The environment has to be one the user sees, and they have to be
-    // more than a viewer.
+    // The environment has to be one the user sees; whether they may touch
+    // the machine is checked once it is found.
     let visible = access
         .visible(database(cx))
         .await?
         .into_iter()
         .find(|visible| visible.environment.id == environment.id)
         .ok_or_forbidden()?;
-    if !access.can_operate() {
-        return Err(forbidden().into());
-    }
     let guest = GuestId {
         node: input.node,
         vmid: VmId::try_from(i128::from(input.vmid))
@@ -483,17 +487,18 @@ pub async fn power(cx: &Cx, Form(input): Form<PowerForm>) -> Result<SeeOther> {
             .await
             .map_err(|error| error.to_string())?;
         // The form names the machine, so it is checked against the list:
-        // only one that carries the organisation's tag may be touched.
-        if visible.tag.is_some() {
-            let known = guests::list(&client)
-                .await
-                .map_err(|error| error.to_string())?;
-            if !known
-                .iter()
-                .any(|known| known.id == guest && visible.shows(known))
-            {
-                return Err("that machine does not belong to your organisation".to_owned());
-            }
+        // only one in view, and the user's to operate, may be touched.
+        let known = guests::list(&client)
+            .await
+            .map_err(|error| error.to_string())?;
+        let Some(known) = known
+            .iter()
+            .find(|known| known.id == guest && visible.shows(known))
+        else {
+            return Err("that machine is not one of yours".to_owned());
+        };
+        if !access.can_operate(&visible, known) {
+            return Err("you may look at that machine, not change it".to_owned());
         }
         let started = match input.action.as_str() {
             "start" => guests::start(&client, &guest).await,

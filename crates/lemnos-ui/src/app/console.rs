@@ -73,8 +73,8 @@ pub struct ScopeForm {
     organization: String,
 }
 
-// POST /scope: switches to another of the user's organisations (or, for an
-// admin, to everything), then shows its machines.
+// POST /scope: switches to the user's own machines, another of their
+// organisations (or, for an admin, to everything), then shows its machines.
 #[route(POST "./scope")]
 pub async fn choose_scope(cx: &Cx, Form(input): Form<ScopeForm>) -> Result<SeeOther> {
     crate::access::choose(cx, &input.organization);

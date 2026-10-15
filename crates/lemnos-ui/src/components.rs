@@ -82,16 +82,7 @@ pub async fn shell_bar(cx: &Cx, theme: Theme) -> Result<impl View> {
     let access = access(cx).await?;
     let path = uri(cx).path();
     // What the user can look at, as (value for the form, name).
-    let mut scopes: Vec<(String, String)> = Vec::new();
-    if access.admin {
-        scopes.push(("all".to_owned(), "Everything".to_owned()));
-    }
-    for membership in &access.memberships {
-        scopes.push((
-            membership.organization.id.0.to_string(),
-            membership.organization.name.clone(),
-        ));
-    }
+    let scopes = access.scopes();
     let looking_at = access.scope_choice();
 
     Ok(view! {

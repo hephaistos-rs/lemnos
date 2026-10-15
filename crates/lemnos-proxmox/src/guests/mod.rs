@@ -20,6 +20,7 @@ use crate::client::Client;
 
 mod lifecycle;
 mod power;
+pub mod provision;
 pub mod snapshots;
 
 pub use lifecycle::*;
