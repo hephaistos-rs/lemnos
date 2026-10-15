@@ -67,12 +67,46 @@ pub struct ProxmoxEnvironment {
     pub accept_invalid_certs: bool,
 }
 
+/// What an admin changes about a stored environment.
+#[derive(Clone, PartialEq, Eq)]
+pub struct ProxmoxEnvironmentEdit {
+    pub name: String,
+    pub url: String,
+    pub user: String,
+    pub realm: String,
+    /// The token's name, or `None` to sign in with a password.
+    pub token_id: Option<String>,
+    /// `None` keeps the stored secret. That is only allowed while it still
+    /// belongs to the same login: the same user, realm and token.
+    pub secret: Option<String>,
+    pub accept_invalid_certs: bool,
+}
+
+// Written by hand for the same reason as `ProxmoxLogin`'s.
+impl fmt::Debug for ProxmoxEnvironmentEdit {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ProxmoxEnvironmentEdit")
+            .field("name", &self.name)
+            .field("url", &self.url)
+            .field("user", &self.user)
+            .field("realm", &self.realm)
+            .field("token_id", &self.token_id)
+            .field("secret", &self.secret.as_ref().map(|_| ".."))
+            .field("accept_invalid_certs", &self.accept_invalid_certs)
+            .finish()
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum ProxmoxStoreError {
     #[error("another environment already has that name")]
     NameTaken,
     #[error("there is no such environment")]
     NotFound,
+    /// The secret was left out while the user, realm or token changed, so
+    /// the stored one would not belong to the new login.
+    #[error("the login changed, so it needs its secret again")]
+    SecretNeeded,
     #[error("the database failed")]
     Backend(#[source] sqlx::Error),
 }
@@ -205,6 +239,53 @@ impl Database {
         .await
         .map_err(store_error)?;
         Ok(())
+    }
+
+    /// Applies an admin's changes, keeping the stored secret when none is
+    /// given. Returns the environment as it is now stored.
+    pub async fn edit_proxmox_environment(
+        &self,
+        environment: ProxmoxEnvironmentId,
+        edit: ProxmoxEnvironmentEdit,
+    ) -> Result<ProxmoxEnvironment> {
+        let current = self
+            .proxmox_environment(environment)
+            .await?
+            .ok_or(ProxmoxStoreError::NotFound)?;
+        let secret = match edit.secret {
+            Some(secret) => secret,
+            None => {
+                let current_token = match &current.login {
+                    ProxmoxLogin::ApiToken { id, .. } => Some(id),
+                    ProxmoxLogin::Password(_) => None,
+                };
+                let same_login = current.user == edit.user
+                    && current.realm == edit.realm
+                    && current_token == edit.token_id.as_ref();
+                if !same_login {
+                    return Err(ProxmoxStoreError::SecretNeeded);
+                }
+                match current.login {
+                    ProxmoxLogin::ApiToken { secret, .. } | ProxmoxLogin::Password(secret) => {
+                        secret
+                    }
+                }
+            }
+        };
+        let updated = ProxmoxEnvironment {
+            id: environment,
+            name: edit.name,
+            url: edit.url,
+            user: edit.user,
+            realm: edit.realm,
+            login: match edit.token_id {
+                Some(id) => ProxmoxLogin::ApiToken { id, secret },
+                None => ProxmoxLogin::Password(secret),
+            },
+            accept_invalid_certs: edit.accept_invalid_certs,
+        };
+        self.update_proxmox_environment(updated.clone()).await?;
+        Ok(updated)
     }
 
     /// Forgets the environment. Nothing changes on the Proxmox side.

@@ -41,8 +41,8 @@ pub use organizations::{
     Account, Grant, Member, Membership, Organization, OrganizationId, OrganizationStoreError, Role,
 };
 pub use proxmox::{
-    NewProxmoxEnvironment, ProxmoxEnvironment, ProxmoxEnvironmentId, ProxmoxLogin,
-    ProxmoxStoreError,
+    NewProxmoxEnvironment, ProxmoxEnvironment, ProxmoxEnvironmentEdit, ProxmoxEnvironmentId,
+    ProxmoxLogin, ProxmoxStoreError,
 };
 
 #[derive(Debug, thiserror::Error)]
