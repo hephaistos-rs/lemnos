@@ -45,7 +45,20 @@ pub struct Endpoint {
     /// cert, so you'll often need this, but it's off by default: without
     /// verification, anyone on the network path can read the secret.
     pub accept_invalid_certs: bool,
+    /// How long to wait for a connection to Proxmox before giving up.
+    pub connect_timeout: Duration,
+    /// How long one request may take from start to finished answer.
+    pub request_timeout: Duration,
 }
+
+/// A reachable Proxmox answers within milliseconds, so after this the host
+/// is down or the address is wrong.
+pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
+/// Every slow operation (copying, starting, removing) returns a task ID right
+/// away and is followed with [`crate::tasks::wait`], one short request per
+/// poll. So no single request should get near this; it only stops a hung
+/// Proxmox from holding a page open forever.
+pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
 impl Endpoint {
     pub fn new(url: impl Into<String>, user: impl Into<String>, realm: impl Into<String>) -> Self {
@@ -54,11 +67,23 @@ impl Endpoint {
             user: user.into(),
             realm: realm.into(),
             accept_invalid_certs: false,
+            connect_timeout: CONNECT_TIMEOUT,
+            request_timeout: REQUEST_TIMEOUT,
         }
     }
 
     pub fn accept_invalid_certs(mut self, accept: bool) -> Self {
         self.accept_invalid_certs = accept;
+        self
+    }
+
+    pub fn connect_timeout(mut self, timeout: Duration) -> Self {
+        self.connect_timeout = timeout;
+        self
+    }
+
+    pub fn request_timeout(mut self, timeout: Duration) -> Self {
+        self.request_timeout = timeout;
         self
     }
 }
@@ -105,6 +130,8 @@ pub async fn connect(endpoint: &Endpoint, credentials: &Credentials) -> Result<C
     // certificate checks.
     let http = reqwest::Client::builder()
         .danger_accept_invalid_certs(endpoint.accept_invalid_certs)
+        .connect_timeout(endpoint.connect_timeout)
+        .timeout(endpoint.request_timeout)
         .build()?;
     let client = Client::new(&endpoint.url, &endpoint.user, &endpoint.realm, Some(http));
 
