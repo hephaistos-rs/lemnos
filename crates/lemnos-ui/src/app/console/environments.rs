@@ -141,6 +141,7 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
     admin_access(cx).await?;
     let query = query_params::<Query>(cx)?;
     let environments = database(cx).proxmox_environments().await?;
+    let personal = database(cx).personal_environment().await?;
 
     Ok(view! {
         <div class="page">
@@ -217,6 +218,32 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
                     <p class="text-meta text-ink-faint">
                         "Removing an environment only makes Lemnos forget it, and takes it away from the organisations that were given it. Nothing changes on the provider's side."
                     </p>
+
+                    if !environments.is_empty() {
+                        <section class="panel">
+                            <h2 class="section-title">"Personal machines"</h2>
+                            <p class="text-ink-muted max-w-[65ch]">
+                                "Everyone may create one machine of their own, from the templates in this environment. Admins may create as many as they need, in any environment."
+                            </p>
+                            <form method="post" action=(href!(set_personal)) class="inline-form">
+                                <select name="environment" class="input" aria-label="Environment for personal machines">
+                                    if personal.is_none() {
+                                        <option value="" selected="">"None: nobody can create one"</option>
+                                    } else {
+                                        <option value="">"None: nobody can create one"</option>
+                                    }
+                                    for known in &environments {
+                                        if Some(known.id) == personal {
+                                            <option value=(known.id.0.to_string()) selected="">(known.name.as_str())</option>
+                                        } else {
+                                            <option value=(known.id.0.to_string())>(known.name.as_str())</option>
+                                        }
+                                    }
+                                </select>
+                                <button type="submit" class="button">"Save"</button>
+                            </form>
+                        </section>
+                    }
                 </div>
 
                 <section class="panel">
@@ -366,6 +393,28 @@ pub async fn add(cx: &Cx, Form(input): Form<NewEnvironmentForm>) -> Result<SeeOt
             Err(error) => return Err(error.into()),
         },
     ))
+}
+
+#[derive(Deserialize)]
+pub struct PersonalForm {
+    // Empty for none.
+    environment: String,
+}
+
+// Where personal machines are created.
+#[route(POST "./personal")]
+pub async fn set_personal(cx: &Cx, Form(input): Form<PersonalForm>) -> Result<SeeOther> {
+    admin_access(cx).await?;
+    let database = database(cx);
+    let chosen = match input.environment.parse() {
+        Ok(id) => database
+            .proxmox_environment(ProxmoxEnvironmentId(id))
+            .await?
+            .map(|environment| environment.id),
+        Err(_) => None,
+    };
+    database.set_personal_environment(chosen).await?;
+    Ok(see_other(back(cx, None)))
 }
 
 #[derive(Deserialize)]

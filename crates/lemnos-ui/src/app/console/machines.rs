@@ -1,6 +1,11 @@
 // /machines: every machine the signed-in user may see, across environments.
+// `new.rs` creates one; `remove.rs` deletes one Lemnos created.
 
-use lemnos_proxmox::guests::Guest;
+use std::collections::HashMap;
+
+use lemnos_auth::UserId;
+use lemnos_db::{Database, MachineRecord, OrganizationId, Owner, ProjectId};
+use lemnos_proxmox::guests::{Guest, GuestStatus};
 use topcoat::{
     Result,
     context::Cx,
@@ -19,9 +24,12 @@ use super::{
     organizations, welcome,
 };
 use crate::{
-    access::{Scope, Visible, access, database},
+    access::{Access, Scope, Visible, access, database},
     components::{heat, notice, problem},
 };
+
+pub mod new;
+pub mod remove;
 
 #[query_params(error = bad_request)]
 struct Query {
@@ -71,11 +79,78 @@ async fn load(visible: Visible) -> Loaded {
     Loaded { visible, guests }
 }
 
+/// The names owners are shown by.
+struct Owners {
+    organizations: HashMap<OrganizationId, String>,
+    projects: HashMap<ProjectId, String>,
+    // Only filled in for admins, who see everyone's personal machines.
+    people: HashMap<UserId, String>,
+}
+
+impl Owners {
+    async fn load(database: &Database, access: &Access) -> Result<Self> {
+        let organizations = if access.admin {
+            database.organizations().await?
+        } else {
+            access
+                .memberships
+                .iter()
+                .map(|membership| membership.organization.clone())
+                .collect()
+        };
+        let mut projects = HashMap::new();
+        for organization in &organizations {
+            for project in database.projects(organization.id).await? {
+                projects.insert(project.id, project.name);
+            }
+        }
+        let mut people = HashMap::new();
+        if access.admin {
+            for account in database.accounts().await? {
+                people.insert(account.user, account.username);
+            }
+        }
+        Ok(Self {
+            organizations: organizations
+                .into_iter()
+                .map(|organization| (organization.id, organization.name))
+                .collect(),
+            projects,
+            people,
+        })
+    }
+
+    /// Whose the machine is, in words. A machine Lemnos did not create is
+    /// the organisation's when looking at one, and nobody's in particular
+    /// otherwise.
+    fn label(&self, access: &Access, record: Option<&MachineRecord>) -> String {
+        let unknown = || "-".to_owned();
+        match record.map(|record| record.owner) {
+            Some(Owner::Person(user)) if user == access.user.id => "You".to_owned(),
+            Some(Owner::Person(user)) => self.people.get(&user).cloned().unwrap_or_else(unknown),
+            Some(Owner::Project { project, .. }) => self
+                .projects
+                .get(&project)
+                .map_or_else(unknown, |name| format!("Project {name}")),
+            Some(Owner::Organization(organization)) => self
+                .organizations
+                .get(&organization)
+                .cloned()
+                .unwrap_or_else(unknown),
+            None => match &access.scope {
+                Scope::Organization(membership) => membership.organization.name.clone(),
+                Scope::Everything | Scope::Personal => unknown(),
+            },
+        }
+    }
+}
+
 fn plural(count: usize, one: &str, many: &str) -> String {
     format!("{count} {}", if count == 1 { one } else { many })
 }
 
-// Someone with nothing to look at yet is shown what to do about it instead.
+// An admin of an installation with nothing connected yet is shown what to
+// do about it instead.
 #[page]
 pub async fn page(cx: &Cx) -> Result<impl View> {
     let access = access(cx).await?;
@@ -85,9 +160,11 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
     let visible = access.visible(database).await?;
     let nothing_connected =
         access.admin && visible.is_empty() && database.proxmox_environments().await?.is_empty();
-    if matches!(access.scope, Scope::Nothing) || nothing_connected {
+    if nothing_connected {
         return Err(see_other(href!(welcome::page).resolve(cx)).into());
     }
+    let owners = Owners::load(database, &access).await?;
+    let personal = matches!(access.scope, Scope::Personal);
 
     let mut loaded = Vec::new();
     // One after the other: there are only ever a handful of environments.
@@ -139,7 +216,7 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
     // An organisation that was given no environment has no list to show.
     let own_organization = match &access.scope {
         Scope::Organization(membership) => Some(membership.organization.id.0),
-        Scope::Everything | Scope::Nothing => None,
+        Scope::Everything | Scope::Personal => None,
     };
 
     Ok(view! {
@@ -151,6 +228,7 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
                         <p>(summary.as_str())</p>
                     }
                 </div>
+                <a href=(href!(new::page)) class="button button-primary">"New machine"</a>
             </div>
 
             if let Some(message) = &power_done {
@@ -167,7 +245,15 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
                 )
             }
 
-            if loaded.is_empty() {
+            if loaded.is_empty() && personal {
+                <div class="panel items-start">
+                    <h2 class="section-title">"No machines yet"</h2>
+                    <p class="text-ink-muted max-w-[65ch]">
+                        "Your personal machines show up here. Everyone gets one to start with; machines for an organisation or a project are made for it instead."
+                    </p>
+                    <a href=(href!(new::page)) class="button button-primary">"Create your machine"</a>
+                </div>
+            } else if loaded.is_empty() {
                 <div class="panel items-start">
                     <h2 class="section-title">"No environments yet"</h2>
                     <p class="text-ink-muted max-w-[65ch]">
@@ -195,6 +281,7 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
                                 <th>"ID"</th>
                                 <th>"Name"</th>
                                 <th>"Kind"</th>
+                                <th>"Owner"</th>
                                 <th>"Environment"</th>
                                 <th>"CPU"</th>
                                 <th>"Memory"</th>
@@ -204,7 +291,7 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
                         <tbody>
                             if machines == 0 {
                                 <tr>
-                                    <td colspan="8" class="empty wide">
+                                    <td colspan="9" class="empty wide">
                                         "No VMs or containers to show."
                                     </td>
                                 </tr>
@@ -225,6 +312,9 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
                                                 (guest.name.as_deref().unwrap_or("-"))
                                             </td>
                                             <td data-label="Kind" class="meta">(kind_label(guest.id.kind))</td>
+                                            <td data-label="Owner" class="meta">
+                                                (owners.label(&access, entry.visible.record(guest)))
+                                            </td>
                                             <td data-label="Environment" class="meta">
                                                 // Only admins can open an environment.
                                                 if access.admin {
@@ -257,14 +347,31 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
                                                 }
                                             </td>
                                             <td class="wide">
-                                                // Viewers look; they get no buttons.
-                                                if access.can_operate() {
-                                                    power_buttons(
-                                                        environment: entry.visible.environment.id.0,
-                                                        guest: guest,
-                                                        back: "machines",
-                                                    )
-                                                }
+                                                <div class="flex flex-wrap items-center gap-2">
+                                                    // Viewers look; they get no buttons.
+                                                    if access.can_operate(&entry.visible, guest) {
+                                                        power_buttons(
+                                                            environment: entry.visible.environment.id.0,
+                                                            guest: guest,
+                                                            back: "machines",
+                                                        )
+                                                    }
+                                                    // Proxmox only deletes a stopped machine.
+                                                    if access.can_delete(&entry.visible, guest)
+                                                        && guest.status == GuestStatus::Stopped
+                                                    {
+                                                        <a
+                                                            href=(remove::link(
+                                                                cx,
+                                                                entry.visible.environment.id.0,
+                                                                &guest.id.vmid.to_string(),
+                                                            ))
+                                                            class="button button-sm button-danger"
+                                                        >
+                                                            "Delete"
+                                                        </a>
+                                                    }
+                                                </div>
                                             </td>
                                         </tr>
                                     }

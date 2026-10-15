@@ -16,8 +16,9 @@
 //! is not moved from one to the other.
 //!
 //! It also keeps the Proxmox VE environments Lemnos manages (see
-//! [`ProxmoxEnvironment`]) and who may use which of them (see
-//! [`Organization`]).
+//! [`ProxmoxEnvironment`]), who may use which of them (see
+//! [`Organization`]), and who owns the machines Lemnos created (see
+//! [`MachineRecord`]).
 //!
 //! To work the same on all three, the schema sticks to what they share:
 //! every column is a 64-bit integer or text. Times are stored as seconds
@@ -30,10 +31,12 @@ use sqlx::{
 };
 
 mod auth_store;
+mod machines;
 mod organizations;
 mod proxmox;
 mod schema;
 
+pub use machines::{MachineRecord, Owner, Project, ProjectId, ProjectMember};
 pub use organizations::{
     Account, Grant, Member, Membership, Organization, OrganizationId, OrganizationStoreError, Role,
 };

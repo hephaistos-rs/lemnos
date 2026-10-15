@@ -1,15 +1,24 @@
-// /organizations/{organization}: who is in one organisation, and which
-// environments it was given. Its people can read it; owners and admins
-// change who is in it; admins change what it was given.
+// /organizations/{organization}: who is in one organisation, its projects,
+// which environments it was given and how many machines it may create. Its
+// people can read it; owners and admins change who is in it and in its
+// projects; admins change what it was given.
 //
-//   GET  /organizations/{organization}                       the overview
-//   POST /organizations/{organization}/members               add someone, or change their role
-//   POST /organizations/{organization}/members/remove        take someone out
-//   POST /organizations/{organization}/environments          give an environment, or change its tag
-//   POST /organizations/{organization}/environments/remove   take one back
+//   GET  /organizations/{organization}                           the overview
+//   POST /organizations/{organization}/members                   add someone, or change their role
+//   POST /organizations/{organization}/members/remove            take someone out
+//   POST /organizations/{organization}/projects                  start a project
+//   POST /organizations/{organization}/projects/remove           end one
+//   POST /organizations/{organization}/projects/members          put someone in a project
+//   POST /organizations/{organization}/projects/members/remove   take them out again
+//   POST /organizations/{organization}/quota                     how many machines it may create
+//   POST /organizations/{organization}/environments              give an environment, or change its tag
+//   POST /organizations/{organization}/environments/remove       take one back
 
 use lemnos_auth::{Store, UserId, Username};
-use lemnos_db::{Organization as Stored, OrganizationId, ProxmoxEnvironmentId, Role};
+use lemnos_db::{
+    Organization as Stored, OrganizationId, OrganizationStoreError, Project, ProjectId,
+    ProxmoxEnvironmentId, Role,
+};
 use serde::Deserialize;
 use topcoat::{
     Result,
@@ -42,6 +51,11 @@ fn error_message(code: &str) -> &'static str {
         }
         "tag" => "A tag is at most 64 letters, digits, dashes, dots, underscores or plus signs.",
         "environment" => "Choose an environment.",
+        "project" => "Give the project a name of at most 64 characters.",
+        "project-taken" => "Another project here already has that name.",
+        "outsider" => {
+            "Only people in the organisation can be in its projects. Add them above first."
+        }
         _ => "That did not work. Check the form and try again.",
     }
 }
@@ -81,6 +95,22 @@ struct Given {
     tag: String,
 }
 
+/// A project and its people, as its row shows it.
+struct Team {
+    project: Project,
+    people: Vec<(UserId, String)>,
+}
+
+/// The project in the form, if it is one of this organisation's.
+async fn own_project(cx: &Cx, organization: OrganizationId, project: u64) -> Result<Project> {
+    let project = database(cx)
+        .project(ProjectId(project))
+        .await?
+        .filter(|project| project.organization == organization)
+        .ok_or_not_found()?;
+    Ok(project)
+}
+
 #[page]
 pub async fn page(cx: &Cx) -> Result<impl View> {
     let (access, organization) = readable(cx).await?;
@@ -103,6 +133,25 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
             })
         })
         .collect();
+    let mut teams = Vec::new();
+    for project in database.projects(organization.id).await? {
+        let people = database
+            .project_members(project.id)
+            .await?
+            .into_iter()
+            .map(|member| (member.user, member.username))
+            .collect();
+        teams.push(Team { project, people });
+    }
+    let quota = database.machine_quota(organization.id).await?;
+    let in_use = database.organization_machines(organization.id).await?.len();
+    let quota_text = match quota {
+        0 => "Its people may not create machines yet; an admin can allow some.".to_owned(),
+        1 => format!("Its people may create 1 machine, its projects' included. {in_use} in use."),
+        _ => format!(
+            "Its people may create {quota} machines, its projects' included. {in_use} in use."
+        ),
+    };
     let manages = access.can_manage_members(organization.id);
     let id = organization.id.0;
     let split = "grid gap-8 lg:grid-cols-[minmax(0,1fr)_24rem] items-start";
@@ -211,6 +260,109 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
                         </section>
                     }
                 </div>
+            </section>
+
+            <section class="flex flex-col gap-y-3">
+                <h2 class="section-title">"Projects"</h2>
+                <p class="text-ink-muted max-w-[65ch]">
+                    "A project is a few of the organisation's people with machines of their own. Everyone in the organisation sees them; only the project's people (and owners) change them."
+                </p>
+                <div class=(if manages { split } else { "" })>
+                    <div class="data data-stack">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>"Project"</th>
+                                    <th>"People"</th>
+                                    if manages {
+                                        <th><span class="sr-only">"Change"</span></th>
+                                    }
+                                </tr>
+                            </thead>
+                            <tbody>
+                                if teams.is_empty() {
+                                    <tr>
+                                        <td colspan="3" class="empty wide">"No projects yet."</td>
+                                    </tr>
+                                }
+                                for team in &teams {
+                                    <tr>
+                                        <td data-label="Project" class="name">(team.project.name.as_str())</td>
+                                        <td data-label="People">
+                                            if team.people.is_empty() {
+                                                "Nobody yet"
+                                            }
+                                            if manages {
+                                                <div class="flex flex-wrap gap-2">
+                                                    for (user, username) in &team.people {
+                                                        <form method="post" action=(href!(remove_project_member, Organization(id)))>
+                                                            <input type="hidden" name="project" value=(team.project.id.0.to_string())>
+                                                            <input type="hidden" name="user" value=(user.0.to_string())>
+                                                            <button
+                                                                type="submit"
+                                                                class="button button-sm"
+                                                                aria-label=(format!("Take {username} out of {}", team.project.name))
+                                                                title="Take out of the project"
+                                                            >
+                                                                (username.as_str()) " ×"
+                                                            </button>
+                                                        </form>
+                                                    }
+                                                </div>
+                                            } else {
+                                                (team.people.iter().map(|(_, username)| username.as_str()).collect::<Vec<_>>().join(", "))
+                                            }
+                                        </td>
+                                        if manages {
+                                            <td class="wide">
+                                                <div class="actions">
+                                                    <form method="post" action=(href!(add_project_member, Organization(id))) class="inline-form">
+                                                        <input type="hidden" name="project" value=(team.project.id.0.to_string())>
+                                                        <select name="user" class="input input-sm" aria-label=(format!("Person to add to {}", team.project.name))>
+                                                            for member in &members {
+                                                                <option value=(member.user.0.to_string())>(member.username.as_str())</option>
+                                                            }
+                                                        </select>
+                                                        <button type="submit" class="button button-sm">"Add"</button>
+                                                    </form>
+                                                    <form method="post" action=(href!(remove_project, Organization(id)))>
+                                                        <input type="hidden" name="project" value=(team.project.id.0.to_string())>
+                                                        <button type="submit" class="button button-sm button-danger">"End project"</button>
+                                                    </form>
+                                                </div>
+                                            </td>
+                                        }
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    if manages {
+                        <section class="panel">
+                            <h2 class="section-title">"Start a project"</h2>
+                            <form method="post" action=(href!(add_project, Organization(id))) class="flex flex-col gap-y-4">
+                                <div class="field">
+                                    <label for="project-name" class="label">"Name"</label>
+                                    <input type="text" id="project-name" name="name" class="input" maxlength="64" autocomplete="off" required="">
+                                    <p class="hint">"Ending a project later leaves its machines to the organisation."</p>
+                                </div>
+                                <button type="submit" class="button button-primary self-start">"Start project"</button>
+                            </form>
+                        </section>
+                    }
+                </div>
+            </section>
+
+            <section class="flex flex-col gap-y-3">
+                <h2 class="section-title">"Machines it may create"</h2>
+                <p class="text-ink-muted max-w-[65ch]">(quota_text.as_str())</p>
+                if access.admin {
+                    <form method="post" action=(href!(set_quota, Organization(id))) class="inline-form">
+                        <input type="number" name="quota" class="input input-sm w-24" min="0" max="10000" value=(quota.to_string()) aria-label="Machines it may create">
+                        <button type="submit" class="button button-sm">"Save"</button>
+                    </form>
+                }
             </section>
 
             <section class="flex flex-col gap-y-3">
@@ -335,6 +487,94 @@ pub async fn remove_member(cx: &Cx, Form(input): Form<RemoveMemberForm>) -> Resu
     let (_, organization) = manageable(cx).await?;
     database(cx)
         .remove_membership(UserId(input.user), organization.id)
+        .await?;
+    Ok(see_other(back(cx, organization.id, None)))
+}
+
+#[derive(Deserialize)]
+pub struct ProjectForm {
+    name: String,
+}
+
+#[route(POST "./projects")]
+pub async fn add_project(cx: &Cx, Form(input): Form<ProjectForm>) -> Result<SeeOther> {
+    let (_, organization) = manageable(cx).await?;
+    let name = input.name.trim();
+    if name.is_empty() || name.chars().count() > 64 {
+        return Ok(see_other(back(cx, organization.id, Some("project"))));
+    }
+    Ok(see_other(
+        match database(cx).create_project(organization.id, name).await {
+            Ok(_) => back(cx, organization.id, None),
+            Err(OrganizationStoreError::NameTaken) => {
+                back(cx, organization.id, Some("project-taken"))
+            }
+            Err(error) => return Err(error.into()),
+        },
+    ))
+}
+
+#[derive(Deserialize)]
+pub struct WhichProject {
+    project: u64,
+}
+
+#[route(POST "./projects/remove")]
+pub async fn remove_project(cx: &Cx, Form(input): Form<WhichProject>) -> Result<SeeOther> {
+    let (_, organization) = manageable(cx).await?;
+    let project = own_project(cx, organization.id, input.project).await?;
+    database(cx).delete_project(project.id).await?;
+    Ok(see_other(back(cx, organization.id, None)))
+}
+
+#[derive(Deserialize)]
+pub struct ProjectMemberForm {
+    project: u64,
+    user: u64,
+}
+
+#[route(POST "./projects/members")]
+pub async fn add_project_member(cx: &Cx, Form(input): Form<ProjectMemberForm>) -> Result<SeeOther> {
+    let (_, organization) = manageable(cx).await?;
+    let project = own_project(cx, organization.id, input.project).await?;
+    let database = database(cx);
+    let user = UserId(input.user);
+    let member = database
+        .members(organization.id)
+        .await?
+        .iter()
+        .any(|member| member.user == user);
+    if !member {
+        return Ok(see_other(back(cx, organization.id, Some("outsider"))));
+    }
+    database.add_project_member(project.id, user).await?;
+    Ok(see_other(back(cx, organization.id, None)))
+}
+
+#[route(POST "./projects/members/remove")]
+pub async fn remove_project_member(
+    cx: &Cx,
+    Form(input): Form<ProjectMemberForm>,
+) -> Result<SeeOther> {
+    let (_, organization) = manageable(cx).await?;
+    let project = own_project(cx, organization.id, input.project).await?;
+    database(cx)
+        .remove_project_member(project.id, UserId(input.user))
+        .await?;
+    Ok(see_other(back(cx, organization.id, None)))
+}
+
+#[derive(Deserialize)]
+pub struct QuotaForm {
+    quota: u64,
+}
+
+#[route(POST "./quota")]
+pub async fn set_quota(cx: &Cx, Form(input): Form<QuotaForm>) -> Result<SeeOther> {
+    admin_access(cx).await?;
+    let (_, organization) = readable(cx).await?;
+    database(cx)
+        .set_machine_quota(organization.id, input.quota)
         .await?;
     Ok(see_other(back(cx, organization.id, None)))
 }

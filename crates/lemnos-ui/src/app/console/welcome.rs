@@ -1,6 +1,6 @@
 // /welcome: what to do first. An admin of a new installation gets the steps
 // to a first working environment; someone who is in no organisation yet is
-// told who can add them.
+// pointed at their personal machine, and told who can add them.
 
 use topcoat::{
     Result,
@@ -10,7 +10,7 @@ use topcoat::{
 };
 
 use super::{environments, machines, organizations};
-use crate::access::{Scope, access, database};
+use crate::access::{access, database};
 
 // One step: whether it is done, what it is, and where to do it. `next` marks
 // the one to do now, which gets the bronze button.
@@ -71,7 +71,7 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
             .map(|account| account.name)
             .collect()
     };
-    let waiting = matches!(access.scope, Scope::Nothing);
+    let waiting = access.memberships.is_empty();
     // The first step that is still open is the one to do now.
     let done = [
         !environments.is_empty(),
@@ -126,15 +126,23 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
             } else if waiting {
                 <div class="page-head">
                     <div>
-                        <h1>"You're in. One thing is missing."</h1>
-                        <p>"Your account works, but it is not part of an organisation yet, so there are no machines to show."</p>
+                        <h1>"You're in"</h1>
+                        <p>"Your account works. Start with a machine of your own, or join an organisation to share its machines."</p>
                     </div>
                 </div>
 
                 <section class="panel">
-                    <h2 class="section-title">"Ask an admin to add you"</h2>
+                    <h2 class="section-title">"Your own machine"</h2>
                     <p class="text-ink-muted max-w-[65ch]">
-                        "They need your username to find you:"
+                        "Everyone gets one personal machine, copied from a template and ready to start."
+                    </p>
+                    <a href=(href!(machines::new::page)) class="button button-primary self-start">"Create your machine"</a>
+                </section>
+
+                <section class="panel">
+                    <h2 class="section-title">"Join an organisation"</h2>
+                    <p class="text-ink-muted max-w-[65ch]">
+                        "An admin or an organisation's owner can add you. They need your username to find you:"
                     </p>
                     <p class="figure text-base">(access.user.username.as_str())</p>
                     if !admins.is_empty() {
@@ -142,7 +150,6 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
                             "Admins of this installation: " (admins.join(", ")) "."
                         </p>
                     }
-                    <a href=(href!(machines::page)) class="button self-start">"I've been added, check again"</a>
                 </section>
             } else {
                 <div class="page-head">

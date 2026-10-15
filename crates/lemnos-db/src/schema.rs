@@ -15,6 +15,7 @@ const MIGRATIONS: &[fn(Dialect) -> Vec<String>] = &[
     unique_passkeys,
     proxmox_environments,
     organizations,
+    projects_and_machines,
 ];
 
 fn accounts_and_sessions(dialect: Dialect) -> Vec<String> {
@@ -149,6 +150,66 @@ fn organizations(dialect: Dialect) -> Vec<String> {
             FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
         )",
         "CREATE INDEX memberships_organization_id ON memberships (organization_id)",
+    ]
+    .into_iter()
+    .map(|statement| {
+        if statement.starts_with("CREATE TABLE") {
+            format!("{statement}{table_options}")
+        } else {
+            statement.to_owned()
+        }
+    })
+    .collect()
+}
+
+/// Projects inside organisations, who owns the machines Lemnos created, how
+/// many an organisation may create, and installation-wide settings.
+fn projects_and_machines(dialect: Dialect) -> Vec<String> {
+    // As for the first tables: names compare by bytes on every database.
+    let table_options = match dialect {
+        Dialect::MySql => " DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin",
+        Dialect::Sqlite | Dialect::Postgres => "",
+    };
+    [
+        // How many machines the organisation's people may create, its
+        // projects' included. Admins are not counted against it.
+        "ALTER TABLE organizations ADD COLUMN machine_quota BIGINT NOT NULL DEFAULT 0",
+        "CREATE TABLE projects (
+            id BIGINT NOT NULL PRIMARY KEY,
+            organization_id BIGINT NOT NULL,
+            name VARCHAR(64) NOT NULL,
+            UNIQUE (organization_id, name),
+            FOREIGN KEY (organization_id) REFERENCES organizations (id) ON DELETE CASCADE
+        )",
+        "CREATE TABLE project_members (
+            project_id BIGINT NOT NULL,
+            user_id BIGINT NOT NULL,
+            PRIMARY KEY (project_id, user_id),
+            FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE CASCADE,
+            FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+        )",
+        // One row per machine Lemnos created. `machine` is the provider's
+        // own ID for it. The owner is the project if `project_id` is set,
+        // else the organisation if `organization_id` is, else `user_id`.
+        "CREATE TABLE machines (
+            environment_id BIGINT NOT NULL,
+            machine VARCHAR(64) NOT NULL,
+            name VARCHAR(255) NOT NULL,
+            user_id BIGINT,
+            organization_id BIGINT,
+            project_id BIGINT,
+            created_by BIGINT,
+            created_at BIGINT NOT NULL,
+            PRIMARY KEY (environment_id, machine),
+            FOREIGN KEY (environment_id) REFERENCES proxmox_environments (id) ON DELETE CASCADE
+        )",
+        "CREATE TABLE settings (
+            name VARCHAR(64) NOT NULL PRIMARY KEY,
+            value VARCHAR(255) NOT NULL
+        )",
+        "CREATE INDEX machines_user_id ON machines (user_id)",
+        "CREATE INDEX machines_organization_id ON machines (organization_id)",
+        "CREATE INDEX project_members_user_id ON project_members (user_id)",
     ]
     .into_iter()
     .map(|statement| {

@@ -99,13 +99,15 @@ pub enum OrganizationStoreError {
     NameTaken,
     #[error("the database holds an unknown role")]
     UnknownRole,
+    #[error("the database holds a machine without an owner")]
+    UnknownOwner,
     #[error("the database failed")]
     Backend(#[source] sqlx::Error),
 }
 
 type Result<T> = std::result::Result<T, OrganizationStoreError>;
 
-fn store_error(error: sqlx::Error) -> OrganizationStoreError {
+pub(crate) fn store_error(error: sqlx::Error) -> OrganizationStoreError {
     match error.as_database_error() {
         Some(database_error) if database_error.is_unique_violation() => {
             OrganizationStoreError::NameTaken
@@ -174,12 +176,17 @@ impl Database {
             .find(|known| known.name == name))
     }
 
-    /// Forgets the organisation, who was in it and what it was given.
-    /// Accounts, environments and machines are left alone.
+    /// Forgets the organisation, who was in it, its projects and what it was
+    /// given, and who owns the machines it created. Accounts, environments
+    /// and the machines themselves are left alone.
     pub async fn delete_organization(&self, organization: OrganizationId) -> Result<()> {
         // Spelled out instead of left to `ON DELETE CASCADE`: SQLite only
         // follows that when asked to on every connection.
         for statement in [
+            "DELETE FROM machines WHERE organization_id = ?",
+            "DELETE FROM project_members WHERE project_id IN
+               (SELECT id FROM projects WHERE organization_id = ?)",
+            "DELETE FROM projects WHERE organization_id = ?",
             "DELETE FROM memberships WHERE organization_id = ?",
             "DELETE FROM organization_environments WHERE organization_id = ?",
             "DELETE FROM organizations WHERE id = ?",
@@ -218,17 +225,24 @@ impl Database {
         transaction.commit().await.map_err(store_error)
     }
 
+    /// Takes the user out of the organisation and out of its projects.
     pub async fn remove_membership(
         &self,
         user: UserId,
         organization: OrganizationId,
     ) -> Result<()> {
-        self.query("DELETE FROM memberships WHERE user_id = ? AND organization_id = ?")
-            .bind(user_id(user))
-            .bind(id(organization))
-            .execute(&self.pool)
-            .await
-            .map_err(store_error)?;
+        for statement in [
+            "DELETE FROM project_members WHERE user_id = ? AND project_id IN
+               (SELECT id FROM projects WHERE organization_id = ?)",
+            "DELETE FROM memberships WHERE user_id = ? AND organization_id = ?",
+        ] {
+            self.query(statement)
+                .bind(user_id(user))
+                .bind(id(organization))
+                .execute(&self.pool)
+                .await
+                .map_err(store_error)?;
+        }
         Ok(())
     }
 

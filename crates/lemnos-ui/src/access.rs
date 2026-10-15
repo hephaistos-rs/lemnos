@@ -2,17 +2,25 @@
 // here first; nothing else decides what a person is allowed to do.
 //
 //   admin         runs the installation: environments, organisations, users
-//   owner         decides who is in an organisation
+//   owner         decides who is in an organisation and its projects
 //   member        uses the organisation's machines
 //   viewer        sees them
 //
-// A person looks at one organisation at a time (or, as an admin, at
-// everything). Which one is kept in a cookie and checked on every request.
+// A machine belongs to a person, a project or an organisation (see
+// `lemnos_db::Owner`). Everyone may have one personal machine; admins as
+// many as they like. Organisations and their projects share a quota an
+// admin sets.
+//
+// A person looks at their own machines, one organisation at a time, or (as
+// an admin) everything. Which one is kept in a cookie and checked on every
+// request.
 
 use std::error::Error;
 
 use lemnos_auth::{Auth, NewUser, Store, User, Username};
-use lemnos_db::{Database, Membership, OrganizationId, ProxmoxEnvironment, Role};
+use lemnos_db::{
+    Database, MachineRecord, Membership, OrganizationId, Owner, Project, ProxmoxEnvironment, Role,
+};
 use lemnos_proxmox::guests::Guest;
 use topcoat::{
     Result,
@@ -29,39 +37,65 @@ use crate::{
     config::{AdminConfig, OrganizationConfig},
 };
 
-/// Cookie holding the organisation being looked at: its ID, or `all`.
+/// Cookie holding what is being looked at: an organisation's ID, `personal`
+/// or `all`.
 const COOKIE: &str = "organization";
 const EVERYTHING: &str = "all";
+const PERSONAL: &str = "personal";
+
+/// How many personal machines anyone but an admin may have.
+pub const PERSONAL_LIMIT: usize = 1;
 
 /// What the user is looking at.
 pub enum Scope {
     /// Every environment and every machine. Admins only.
     Everything,
+    /// The user's own machines.
+    Personal,
     /// One of the user's organisations.
     Organization(Membership),
-    /// The user is in no organisation yet.
-    Nothing,
 }
 
 pub struct Access {
     pub user: User,
     pub admin: bool,
     pub memberships: Vec<Membership>,
+    /// The projects the user is in, across organisations.
+    pub projects: Vec<Project>,
     pub scope: Scope,
 }
 
-/// An environment the user may see, and the tag a machine there has to
-/// carry to be theirs. `None` means every machine.
+/// Which of an environment's machines are in view.
+pub enum Selector {
+    Every,
+    /// Those carrying the tag, and those Lemnos created for the owner.
+    Tagged(String),
+    /// Only those Lemnos created for the owner.
+    Recorded,
+}
+
+/// An environment the user may see, which of its machines, and who owns the
+/// ones Lemnos created there.
 pub struct Visible {
     pub environment: ProxmoxEnvironment,
-    pub tag: Option<String>,
+    pub selector: Selector,
+    pub records: Vec<MachineRecord>,
 }
 
 impl Visible {
+    /// Who owns the guest, if Lemnos created it.
+    pub fn record(&self, guest: &Guest) -> Option<&MachineRecord> {
+        let machine = guest.id.vmid.to_string();
+        self.records.iter().find(|record| record.machine == machine)
+    }
+
     pub fn shows(&self, guest: &Guest) -> bool {
-        match &self.tag {
-            Some(tag) => guest.tags.iter().any(|carried| carried == tag),
-            None => true,
+        match &self.selector {
+            Selector::Every => true,
+            Selector::Tagged(tag) => {
+                guest.tags.iter().any(|carried| carried == tag) || self.record(guest).is_some()
+            }
+            Selector::Recorded => self.record(guest).is_some(),
         }
     }
 }
@@ -79,30 +113,35 @@ pub async fn access(cx: &Cx) -> Result<Access> {
     let database = database(cx);
     let admin = database.is_admin(user.id).await?;
     let memberships = database.memberships_of(user.id).await?;
+    let projects = database.projects_of(user.id).await?;
 
     let chosen = cookies(cx).get(COOKIE);
-    let chosen = chosen.as_ref().map(|cookie| cookie.value());
+    let chosen = chosen.as_ref().map(|cookie| cookie.value().to_owned());
     let chosen_organization = chosen
+        .as_deref()
         .and_then(|value| value.parse::<u64>().ok())
         .and_then(|id| {
             memberships
                 .iter()
                 .find(|membership| membership.organization.id.0 == id)
         });
-    let scope = match chosen_organization {
-        Some(membership) => Scope::Organization(membership.clone()),
-        // With no valid choice, an admin sees everything and anyone else
-        // their first organisation.
-        None if admin => Scope::Everything,
-        None => match memberships.first() {
+    let scope = match (chosen.as_deref(), chosen_organization) {
+        (_, Some(membership)) => Scope::Organization(membership.clone()),
+        (Some(PERSONAL), None) => Scope::Personal,
+        (Some(EVERYTHING), None) if admin => Scope::Everything,
+        // With no valid choice, an admin sees everything, anyone else their
+        // first organisation, and someone in none their own machines.
+        _ if admin => Scope::Everything,
+        _ => match memberships.first() {
             Some(membership) => Scope::Organization(membership.clone()),
-            None => Scope::Nothing,
+            None => Scope::Personal,
         },
     };
     Ok(Access {
         user,
         admin,
         memberships,
+        projects,
         scope,
     })
 }
@@ -116,16 +155,24 @@ pub async fn admin_access(cx: &Cx) -> Result<Access> {
     Ok(access)
 }
 
-/// Remembers which organisation to look at. `choice` is an ID or `all`;
-/// whether the user may look at it is checked when it is read back.
+/// Remembers what to look at. `choice` is an organisation's ID, `personal`
+/// or `all`; whether the user may look at it is checked when it is read back.
 pub fn choose(cx: &Cx, choice: &str) {
     let jar = cookies(cx)
         .default_path("/")
         .default_http_only(true)
         .default_same_site(SameSite::Lax)
         .default_max_age(Duration::days(365));
-    if choice == EVERYTHING || choice.parse::<u64>().is_ok() {
+    if choice == EVERYTHING || choice == PERSONAL || choice.parse::<u64>().is_ok() {
         jar.add((COOKIE, choice.to_owned()));
+    }
+}
+
+/// The value `choose` takes to look at the owner's machines.
+pub fn choice_for(owner: Owner) -> String {
+    match owner.organization() {
+        Some(organization) => organization.0.to_string(),
+        None => PERSONAL.to_owned(),
     }
 }
 
@@ -134,8 +181,8 @@ impl Access {
     pub fn scope_name(&self) -> &str {
         match &self.scope {
             Scope::Everything => "Everything",
+            Scope::Personal => "Personal",
             Scope::Organization(membership) => &membership.organization.name,
-            Scope::Nothing => "No organisation",
         }
     }
 
@@ -143,16 +190,96 @@ impl Access {
     pub fn scope_choice(&self) -> String {
         match &self.scope {
             Scope::Organization(membership) => membership.organization.id.0.to_string(),
-            Scope::Everything | Scope::Nothing => EVERYTHING.to_owned(),
+            Scope::Personal => PERSONAL.to_owned(),
+            Scope::Everything => EVERYTHING.to_owned(),
         }
     }
 
-    /// Whether the user may change machines in the current scope.
-    pub fn can_operate(&self) -> bool {
+    /// Everything the user can switch the scope to, as (value for
+    /// `choose`, name).
+    pub fn scopes(&self) -> Vec<(String, String)> {
+        let mut scopes = Vec::new();
+        if self.admin {
+            scopes.push((EVERYTHING.to_owned(), "Everything".to_owned()));
+        }
+        scopes.push((PERSONAL.to_owned(), "Personal".to_owned()));
+        for membership in &self.memberships {
+            scopes.push((
+                membership.organization.id.0.to_string(),
+                membership.organization.name.clone(),
+            ));
+        }
+        scopes
+    }
+
+    fn in_project(&self, project: lemnos_db::ProjectId) -> bool {
+        self.projects.iter().any(|known| known.id == project)
+    }
+
+    /// Whether the user may power the guest on and off. `visible` is the
+    /// environment it was found in.
+    pub fn can_operate(&self, visible: &Visible, guest: &Guest) -> bool {
+        if self.admin {
+            return true;
+        }
+        let owner = visible.record(guest).map(|record| record.owner);
         match &self.scope {
-            Scope::Everything => true,
-            Scope::Organization(membership) => membership.role.can_operate(),
-            Scope::Nothing => false,
+            Scope::Everything => false,
+            Scope::Personal => owner == Some(Owner::Person(self.user.id)),
+            Scope::Organization(membership) => match owner {
+                // A project's machines are for its people, and for the
+                // organisation's owners.
+                Some(Owner::Project { project, .. }) => {
+                    membership.role == Role::Owner
+                        || (membership.role.can_operate() && self.in_project(project))
+                }
+                _ => membership.role.can_operate(),
+            },
+        }
+    }
+
+    /// Whether the user may delete the guest. Only machines Lemnos created
+    /// can be deleted here.
+    pub fn can_delete(&self, visible: &Visible, guest: &Guest) -> bool {
+        let Some(record) = visible.record(guest) else {
+            return false;
+        };
+        if self.admin {
+            return true;
+        }
+        match record.owner {
+            Owner::Person(user) => user == self.user.id,
+            Owner::Organization(organization) => self.role_in(organization) == Some(Role::Owner),
+            Owner::Project {
+                organization,
+                project,
+            } => {
+                self.role_in(organization) == Some(Role::Owner)
+                    || (self.in_project(project)
+                        && self.role_in(organization).is_some_and(Role::can_operate))
+            }
+        }
+    }
+
+    /// Whether the user may create machines for the owner, leaving aside
+    /// how many there already are.
+    pub fn may_create_for(&self, owner: Owner) -> bool {
+        if self.admin {
+            return true;
+        }
+        match owner {
+            Owner::Person(user) => user == self.user.id,
+            Owner::Organization(organization) => {
+                self.role_in(organization).is_some_and(Role::can_operate)
+            }
+            Owner::Project {
+                organization,
+                project,
+            } => match self.role_in(organization) {
+                Some(Role::Owner) => true,
+                Some(role) => role.can_operate() && self.in_project(project),
+                None => false,
+            },
         }
     }
 
@@ -175,31 +302,65 @@ impl Access {
     /// The environments in the current scope, ordered by name.
     pub async fn visible(&self, database: &Database) -> Result<Vec<Visible>> {
         let environments = database.proxmox_environments().await?;
-        Ok(match &self.scope {
-            Scope::Everything => environments
-                .into_iter()
-                .map(|environment| Visible {
-                    environment,
-                    tag: None,
-                })
-                .collect(),
-            Scope::Organization(membership) => {
-                let grants = database.grants(membership.organization.id).await?;
-                environments
-                    .into_iter()
-                    .filter_map(|environment| {
-                        let grant = grants
-                            .iter()
-                            .find(|grant| grant.environment == environment.id)?;
-                        Some(Visible {
-                            environment,
-                            tag: Some(grant.tag.clone()).filter(|tag| !tag.is_empty()),
-                        })
-                    })
-                    .collect()
+        let mut visible = Vec::new();
+        match &self.scope {
+            Scope::Everything => {
+                for environment in environments {
+                    visible.push(Visible {
+                        records: database.environment_machines(environment.id).await?,
+                        environment,
+                        selector: Selector::Every,
+                    });
+                }
             }
-            Scope::Nothing => Vec::new(),
-        })
+            // Wherever the user's own machines are: usually only the
+            // environment for personal machines, but an admin can put theirs
+            // anywhere.
+            Scope::Personal => {
+                let records = database.personal_machines(self.user.id).await?;
+                for environment in environments {
+                    let here: Vec<_> = records
+                        .iter()
+                        .filter(|record| record.environment == environment.id)
+                        .cloned()
+                        .collect();
+                    if !here.is_empty() {
+                        visible.push(Visible {
+                            environment,
+                            selector: Selector::Recorded,
+                            records: here,
+                        });
+                    }
+                }
+            }
+            Scope::Organization(membership) => {
+                let organization = membership.organization.id;
+                let grants = database.grants(organization).await?;
+                let records = database.organization_machines(organization).await?;
+                for environment in environments {
+                    let Some(grant) = grants
+                        .iter()
+                        .find(|grant| grant.environment == environment.id)
+                    else {
+                        continue;
+                    };
+                    visible.push(Visible {
+                        selector: if grant.tag.is_empty() {
+                            Selector::Every
+                        } else {
+                            Selector::Tagged(grant.tag.clone())
+                        },
+                        records: records
+                            .iter()
+                            .filter(|record| record.environment == environment.id)
+                            .cloned()
+                            .collect(),
+                        environment,
+                    });
+                }
+            }
+        }
+        Ok(visible)
     }
 }
 
@@ -243,6 +404,19 @@ pub async fn sync_admins(
         configured.push(from_environment);
     }
     let database = auth.store();
+    // Easy to miss when a local config file predates `[[admin]]`.
+    if configured.is_empty() {
+        let any_admin = database
+            .accounts()
+            .await?
+            .iter()
+            .any(|account| account.admin);
+        if !any_admin {
+            eprintln!(
+                "no admin is configured and none exists yet; the first account created becomes one"
+            );
+        }
+    }
     for admin in configured {
         let username = Username::parse(&admin.username)
             .map_err(|error| format!("admin `{}`: {error}", admin.username))?;
@@ -268,6 +442,42 @@ pub async fn sync_admins(
         database.set_admin(user.id, true).await?;
     }
     Ok(())
+}
+
+/// The owner of a new machine, as it travels in forms and links:
+/// `personal`, `organization-{id}` or `project-{id}`.
+pub fn owner_value(owner: Owner) -> String {
+    match owner {
+        Owner::Person(_) => PERSONAL.to_owned(),
+        Owner::Organization(organization) => format!("organization-{}", organization.0),
+        Owner::Project { project, .. } => format!("project-{}", project.0),
+    }
+}
+
+/// Reads [`owner_value`] back. A project is looked up to find its
+/// organisation; one that does not exist gives `None`.
+pub async fn parse_owner(database: &Database, user: &User, value: &str) -> Result<Option<Owner>> {
+    if value == PERSONAL {
+        return Ok(Some(Owner::Person(user.id)));
+    }
+    if let Some(id) = value
+        .strip_prefix("organization-")
+        .and_then(|id| id.parse().ok())
+    {
+        let organization = database.organization(OrganizationId(id)).await?;
+        return Ok(organization.map(|organization| Owner::Organization(organization.id)));
+    }
+    if let Some(id) = value
+        .strip_prefix("project-")
+        .and_then(|id| id.parse().ok())
+    {
+        let project = database.project(lemnos_db::ProjectId(id)).await?;
+        return Ok(project.map(|project| Owner::Project {
+            organization: project.organization,
+            project: project.id,
+        }));
+    }
+    Ok(None)
 }
 
 /// Creates the organisations named in the config file that do not exist
