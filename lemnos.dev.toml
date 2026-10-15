@@ -26,6 +26,22 @@ allow_sign_up = true
 # Leave a provider out to only admit users who were linked beforehand.
 auto_provision = ["ldap", "dex", "dex-oauth", "saml"]
 
+# An admin of the installation. The account is created with this password
+# on first start; later starts leave the password alone. Without any
+# [[admin]], the first account ever created becomes one. One more can be
+# named with the LEMNOS_ADMIN_USERNAME and LEMNOS_ADMIN_PASSWORD
+# environment variables instead.
+[[admin]]
+username = "admin"
+password = "admin-password-dev"
+
+# An organisation: people who share machines. Everyone who signs in through
+# one of these providers joins it as a member; an admin can add others, and
+# gives it environments, in the console.
+[[organization]]
+name = "Lemnos Dev"
+providers = ["ldap", "dex", "dex-oauth", "saml"]
+
 [passkeys]
 rp_id = "localhost"
 origin = "http://localhost:3000"
@@ -74,7 +90,7 @@ tracker_key = "bGVtbm9zLWRldi10cmFja2VyLWtleS0zMi1ieXRlcyE="
 # A Proxmox VE environment to manage. There is none in compose.dev.yml, so
 # this is only an example: uncomment it and point it at a real one. Sign in
 # with an API token (as here), or with `password = "..."` instead of the two
-# `token_*` keys. Environments can also be added on the Proxmox page.
+# `token_*` keys. Environments can also be added on the Environments page.
 #
 # [[proxmox]]
 # name = "Lab"

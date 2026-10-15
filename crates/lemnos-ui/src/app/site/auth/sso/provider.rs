@@ -12,11 +12,12 @@ use topcoat::{
     router::{
         content::Form,
         error::{SeeOther, not_found, see_other},
-        href, module_param, path_param, query_params, route,
+        module_param, path_param, query_params, route,
     },
 };
 
-use crate::app::auth::{error_code, sign_in, start_session, stash, state, take};
+use crate::access::join_through;
+use crate::app::auth::{after_sign_in, error_code, sign_in, start_session, stash, state, take};
 
 module_param!(provider);
 
@@ -86,8 +87,9 @@ async fn finish(cx: &Cx, callback: Callback) -> Result<SeeOther> {
             .await
         {
             Ok(authenticated) => {
-                start_session(cx, authenticated).await?;
-                href!(crate::app::home).resolve(cx).to_string()
+                let user = start_session(cx, authenticated).await?;
+                join_through(cx, &user, provider).await?;
+                after_sign_in(cx)
             }
             Err(error) => sign_in::failed(cx, error_code(&error)),
         },

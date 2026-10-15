@@ -20,7 +20,7 @@
   /* Only for IDs, addresses and figures: things that are compared digit by digit. */
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 
-  /* The whole type scale. Four sizes, nothing in between. */
+  /* The whole type scale. Four sizes for the console, nothing in between. */
   --text-meta: 0.8125rem;
   --text-meta--line-height: 1.25rem;
   --text-base: 0.9375rem;
@@ -29,6 +29,9 @@
   --text-lead--line-height: 1.5rem;
   --text-title: 1.5rem;
   --text-title--line-height: 2rem;
+  /* A fifth size, for the one line at the top of the public landing page. */
+  --text-display: clamp(2.25rem, 1.4rem + 3.6vw, 4rem);
+  --text-display--line-height: 1.05;
 
   /* Page: the ground, things lying on it, and things pressed into it. */
   --color-ground: light-dark(#e6eeea, #0b1c1b);
@@ -613,5 +616,249 @@
     from {
       clip-path: inset(0 100% 0 0);
     }
+  }
+}
+
+/* ==========================================================================
+   Public site: the landing page and the pages beside it. Built from the
+   console's own parts; only what frames them is new.
+   ========================================================================== */
+@layer components {
+  /* The bar carries on down the page and holds the one big line. */
+  .hero {
+    @apply bg-shell text-shell-ink;
+  }
+  .hero-inner {
+    @apply mx-auto px-4 sm:px-6 pt-12 sm:pt-20 pb-32 flex flex-col items-start gap-y-6;
+    max-width: 84rem;
+  }
+  .hero h1 {
+    @apply text-display font-bold;
+    letter-spacing: -0.02em;
+  }
+  .hero p {
+    @apply text-lead text-shell-muted;
+    max-width: 54ch;
+  }
+  /* As on the bar: ordinary buttons keep the band's colors. */
+  .hero .button:not(.button-primary) {
+    @apply bg-shell-raised text-shell-ink border-transparent hover:bg-shell-raised hover:brightness-125;
+  }
+  .hero :focus-visible {
+    outline-color: var(--color-shell-ink);
+  }
+
+  .site-section {
+    @apply w-full mx-auto px-4 sm:px-6 py-10 sm:py-14 flex flex-col gap-y-3;
+    max-width: 84rem;
+  }
+  /* The example list lies half on the band above it. */
+  .showcase {
+    @apply -mt-20 pt-0 pb-4 sm:pb-6;
+  }
+
+  /* Three statements side by side, each under its own rule. */
+  .site-columns {
+    @apply grid gap-x-8 gap-y-8 md:grid-cols-3;
+  }
+  .site-columns > div {
+    @apply pt-4 border-t border-line-strong flex flex-col gap-y-2;
+  }
+  .site-columns p {
+    @apply text-ink-muted;
+  }
+
+  /* Words on the left, the thing they are about on the right. */
+  .site-split {
+    @apply grid items-start gap-x-16 gap-y-8 lg:grid-cols-2;
+  }
+  .site-prose {
+    @apply flex flex-col gap-y-4;
+    max-width: 65ch;
+  }
+  .site-prose p {
+    @apply text-ink-muted;
+  }
+
+  /* What each mark means: the mark, then a line about it. */
+  .legend {
+    @apply grid items-center border-t border-line;
+    grid-template-columns: max-content 1fr;
+  }
+  .legend dt,
+  .legend dd {
+    @apply py-3 border-b border-line;
+  }
+  .legend dt {
+    @apply flex items-center h-full pr-6 font-medium;
+  }
+  .legend dd {
+    @apply h-full;
+  }
+  .legend dd {
+    @apply text-ink-muted;
+  }
+
+  .steps {
+    @apply flex flex-col;
+    counter-reset: step;
+  }
+  .steps li {
+    @apply relative pl-10 py-4 border-t border-line flex flex-col gap-y-1;
+    counter-increment: step;
+  }
+  .steps li::before {
+    @apply absolute left-0 top-4 font-mono text-meta text-bronze-text;
+    content: "0" counter(step);
+    line-height: 1.5rem;
+  }
+  .steps h3 {
+    @apply font-semibold;
+  }
+
+  /* Something to type, shown as typed. */
+  .code {
+    @apply p-4 sm:p-5 bg-surface border border-line font-mono text-meta overflow-x-auto;
+    border-radius: var(--radius-control);
+    tab-size: 2;
+  }
+
+  .site-close {
+    @apply pt-8 border-t border-line-strong flex flex-wrap items-end justify-between gap-x-8 gap-y-4;
+  }
+
+  /* /features: groups of plain lines, in as many columns as fit. */
+  .feature-list {
+    @apply grid gap-x-12 gap-y-10;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr));
+  }
+  .feature-list section {
+    @apply pt-4 border-t border-line-strong flex flex-col gap-y-3;
+  }
+  .feature-list ul {
+    @apply flex flex-col gap-y-2;
+  }
+  .feature-list li {
+    @apply pl-4 relative;
+  }
+  .feature-list li::before {
+    @apply absolute left-0 top-[0.7em] w-1.5 h-px bg-line-strong content-[''];
+  }
+}
+
+/* ==========================================================================
+   Console: organisations, roles and settings
+   ========================================================================== */
+@layer components {
+  /* With four places to go, the nav scrolls sideways on a narrow bar. */
+  .shell-nav {
+    @apply overflow-x-auto;
+    scrollbar-width: none;
+  }
+  .shell-nav a {
+    @apply whitespace-nowrap;
+  }
+
+  /* Whose machines are being looked at: a name, and a menu to switch when
+     there is more than one. Opens without a script, as a <details>. */
+  .shell-scope,
+  .menu summary {
+    @apply px-2.5 py-1 text-meta font-medium text-shell-ink whitespace-nowrap;
+    border-radius: var(--radius-control);
+  }
+  .shell-scope {
+    @apply hidden sm:block text-shell-muted;
+  }
+  .menu {
+    @apply relative;
+  }
+  .menu summary {
+    @apply flex items-center gap-x-1.5 bg-shell-raised cursor-pointer list-none
+      transition-[filter] duration-150 hover:brightness-125;
+    max-width: 12rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .menu summary::-webkit-details-marker {
+    display: none;
+  }
+  .menu summary::after {
+    @apply block w-1.5 h-1.5 border-r-2 border-b-2 border-current content-[''];
+    transform: translateY(-2px) rotate(45deg);
+    flex: none;
+  }
+  .menu form {
+    @apply absolute right-0 top-full mt-1.5 z-10 p-1 flex flex-col bg-surface border border-line-strong;
+    min-width: 12rem;
+    border-radius: var(--radius-control);
+  }
+  .menu form button {
+    @apply px-3 py-2 text-left text-base text-ink cursor-pointer transition-colors duration-150 hover:bg-sunken;
+    border-radius: calc(var(--radius-control) - 1px);
+  }
+  .menu form button[aria-current="true"] {
+    @apply font-medium;
+    box-shadow: inset 2px 0 0 var(--color-bronze);
+  }
+  /* The menu lies on the page, so its focus ring is the page's. */
+  .shell .menu form :focus-visible {
+    outline-color: var(--color-bronze-text);
+  }
+
+  /* The pages of one section, above their content. */
+  .tabs {
+    @apply w-full mx-auto px-4 sm:px-6 pt-6 flex;
+    max-width: 44rem;
+  }
+  .tabs a {
+    @apply px-3 py-2 font-medium text-ink-muted border-b-2 border-line
+      transition-colors duration-150 hover:text-ink;
+  }
+  /* The rule under the tabs runs on to the edge of the column. */
+  .tabs::after {
+    @apply flex-1 border-b-2 border-line content-[''];
+  }
+  .tabs a[aria-current="page"] {
+    @apply text-ink;
+    border-bottom-color: var(--color-bronze);
+  }
+  .tabs + .page-mid,
+  .tabs + .page-narrow {
+    @apply pt-6;
+  }
+
+  /* A choice and its button on one line, inside a table row. */
+  .inline-form {
+    @apply flex items-center gap-x-2;
+  }
+  .inline-form .button {
+    @apply whitespace-nowrap;
+  }
+  .input-sm {
+    @apply w-auto px-2 py-0.5 text-meta;
+  }
+
+  /* Facts about one thing: what it is on the left, its value on the right. */
+  .facts {
+    @apply grid border-t border-line;
+    grid-template-columns: minmax(6rem, max-content) 1fr;
+  }
+  .facts dt,
+  .facts dd {
+    @apply py-2.5 border-b border-line;
+  }
+  .facts dt {
+    @apply pr-6 text-ink-muted;
+  }
+
+  /* /welcome: the steps of setting up, each with its own button. */
+  .steps-setup li {
+    @apply gap-y-2 py-5;
+  }
+  .steps-setup li::before {
+    @apply top-5;
+  }
+  .steps-setup li.done::before {
+    @apply text-ink-faint;
   }
 }

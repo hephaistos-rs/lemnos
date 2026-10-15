@@ -15,7 +15,7 @@ use topcoat::{
     view::{View, view},
 };
 
-use super::{error_code, error_message, peek, sign_in, start_session, state, take};
+use super::{after_sign_in, error_code, error_message, peek, sign_in, start_session, state, take};
 use crate::components::notice;
 
 /// Cookie holding the proof that the password step was passed.
@@ -71,7 +71,7 @@ pub async fn submit(cx: &Cx, Form(input): Form<CodeForm>) -> Result<SeeOther> {
             Ok(authenticated) => {
                 take::<SecondFactorChallenge>(cx, CHALLENGE, SameSite::Lax);
                 start_session(cx, authenticated).await?;
-                href!(crate::app::home).resolve(cx).to_string()
+                after_sign_in(cx)
             }
             Err(lemnos_auth::AuthError::Expired) => sign_in::failed(cx, "expired"),
             Err(error) => format!("{}?error={}", href!(page).resolve(cx), error_code(&error)),

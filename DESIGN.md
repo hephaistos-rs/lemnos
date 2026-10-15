@@ -56,6 +56,12 @@ typography:
     fontWeight: 400
     lineHeight: "1.25rem"
     fontFeature: "tnum"
+  display:
+    fontFamily: "Commissioner, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "clamp(2.25rem, 1.4rem + 3.6vw, 4rem)"
+    fontWeight: 700
+    lineHeight: 1.05
+    letterSpacing: "-0.02em"
   wordmark:
     fontFamily: "Commissioner, ui-sans-serif, system-ui, sans-serif"
     fontSize: "1.125rem"
@@ -176,7 +182,7 @@ components:
 
 Machines are Hephaistos's bronzes. One in use stays polished, one left idle grows a patina, and how hard it works is read as the heat the metal has run to. The whole system is that one reading: a deep verdigris bar across the top, a green-black or pale green-grey ground beneath it, polished bronze wherever something is running or waiting to be pressed, sea-green patina wherever something has been left alone.
 
-It is an operating console, so it is dense and flat. Pages are a title, one line about the page, then full-width tables with 40px rows. Bordered panels hold a single form or a single group of settings and nothing else. There are no shadows, no cards used as layout, four type sizes and one corner radius. Greece is felt, not illustrated: the bronze and the verdigris, the island's name set small in Greek capitals beside the wordmark, and a text face drawn by a Greek designer.
+There are two kinds of page. The console, behind sign-in, is dense and flat: a title, one line about the page, then full-width tables with 40px rows. The public site (the landing page and Features) is built from the console's own parts and only adds what frames them: a verdigris band under the bar holding one large line, and sections of plain text under hairline rules. Bordered panels hold a single form or a single group of settings and nothing else. There are no shadows, no cards used as layout, four type sizes and one corner radius. Greece is felt, not illustrated: the bronze and the verdigris, the island's name set small in Greek capitals beside the wordmark, and a text face drawn by a Greek designer.
 
 Both modes are first-class. Every colour is one token holding a light value and a dark value, switched by the page's colour scheme, so nothing is styled twice. The bar and the heat scale are the same in both modes.
 
@@ -240,16 +246,17 @@ A green-tinted neutral field carrying two metals, with one red held back for fai
 **Character:** One humanist sans does everything, title to table cell, and carries the Greek capitals of the wordmark without a second face. The mono is a measuring instrument, not a voice.
 
 ### Hierarchy
-- **Title** (600, 1.5rem, line-height 2rem): the page title, one per page.
+- **Display** (700, 2.25rem to 4rem with the viewport, line-height 1.05, tracking -0.02em): the one line in the band at the top of the landing page. Nowhere else.
+- **Title** (600, 1.5rem, line-height 2rem): the page title, one per page; on the landing page, the heading of a section.
 - **Lead** (600, 1.125rem, line-height 1.5rem): section titles above a table or inside a panel; also the machine's name at the head of a stacked row (at its row weight) and the tagline under "Sign in" (400, muted).
 - **Base** (400, 0.9375rem, line-height 1.5rem): everything else: body text, table cells, buttons and nav links (500), names of running things (500). Prose is capped at 65ch.
 - **Meta** (500 for labels and table headers, 400 for hints, 0.8125rem, line-height 1.25rem): field labels, hints, table headers, small buttons, back links, the footer, the small facts line of a stacked machine. Sentence case, no tracking.
 - **Figure** (JetBrains Mono 400, 0.8125rem, tabular numerals): IDs, addresses, percentages, sizes, the technical reason folded inside a failure notice.
 
 ### Named Rules
-**The Four Sizes Rule.** Title, lead, base, meta. The default type scale is removed from the build, so a size outside these four generates nothing. Hierarchy comes from weight and ink strength before it comes from size.
+**The Four Sizes Rule.** Title, lead, base, meta. The default type scale is removed from the build, so a size outside these generates nothing. Hierarchy comes from weight and ink strength before it comes from size. The display size is the one exception, and it belongs to the landing page's first line only.
 
-**The Digits Rule.** Mono is only for things compared digit by digit: IDs, addresses and figures. Names, labels and prose are never mono.
+**The Digits Rule.** Mono is only for things compared or typed character by character: IDs, addresses, figures, usernames, tags, and a config file shown as it would be typed. Names, labels and prose are never mono.
 
 **The Wordmark Rule.** The bar reads "Lemnos" (700, 1.125rem, tracking -0.01em) followed by ΛΗΜΝΟΣ (500, 0.8125rem, tracking 0.16em, shell-muted), on one baseline. Wide tracking and Greek capitals belong to this lockup only; the Greek is decorative and hidden from assistive technology.
 
@@ -268,7 +275,9 @@ Responsive behaviour, as built:
 - **Below 40rem (640px)** the nav drops to a second line of the bar, and the theme switch leaves the bar for the footer, where its buttons are 40px square instead of 28px.
 - **From 90rem** heat tracks widen from 6rem to 9rem.
 
-Signed-out visitors have no landing page: every page behind sign-in, including the root, redirects to the sign-in form.
+Signed-out visitors get the public site: the landing page at the root, Features, and the sign-in pages, under a bar with a Sign in button (Go to dashboard once signed in). Every console page redirects a visitor to the sign-in form and brings them back to the page they asked for.
+
+The landing page, top to bottom: a verdigris band continuing the bar, with the display line, one muted sentence and two buttons; an example list of machines, drawn with the console's real table, lying half on the band; three statements side by side, each under a strong hairline; two split sections with words on the left and the thing they are about on the right (the legend of state marks, a config file); a closing line with the way to the source. Sections are 84rem wide like the console and separated by space, not by boxes.
 
 ## Elevation & Depth
 
@@ -342,8 +351,16 @@ A bordered strip that says what just happened: a drawn 18px line icon, then the 
 - **Warning:** straw border and icon (triangle) over a 10% straw wash.
 - **Failure:** cinnabar border, cinnabar-ink icon (triangle) over a 10% cinnabar wash. It says what the failure means for the reader, may end with a bronze link to where to look, and folds the technical reason away under "Technical details" in mono. An unreachable environment is one of these above the table, never a broken page.
 
+### Facts
+A two-column list for what is known about one thing (a profile, a person's organisations): the name of the fact in muted ink, its value beside it, hairlines between rows. Used inside a panel instead of a table when there is one of each fact.
+
+### Steps
+A numbered list under hairlines, the number in bronze-ink mono at the left. On the landing page it explains; on the welcome page each step also carries a state mark (Done, To do) and a button, and only the step to do next gets the bronze one.
+
 ### Navigation
-- **Bar:** verdigris, at least 56px tall, content held to 84rem. Wordmark, then the nav, then at the right the theme switch, the account name and Sign out.
+- **Bar:** verdigris, at least 56px tall, content held to 84rem. Wordmark, then the nav, then at the right the organisation being looked at, the theme switch, the account name and Sign out. Admins get Machines, Environments, Organisations and Users in the nav; everyone else Machines and Organisations. On a narrow bar the nav scrolls sideways.
+- **Scope menu:** whose machines are shown. A small raised-verdigris button with a chevron that opens a list on the surface below it, with a 2px bronze line beside the current choice. A `<details>` element, so it opens without a script; with only one choice it is plain muted text.
+- **Tabs:** the pages of one section (Settings: Account, Security), in the 44rem column above the page title. Muted links on a 2px line; the current one is ink on a bronze line.
 - **Nav links:** base size at weight 500, shell-muted; shell ink on hover. The current page is shell ink with a 2px bronze line along the bottom edge of the bar.
 - **Focus on the bar:** the ring is shell ink instead of bronze ink.
 - **Theme switch:** three icon buttons in one segmented control: follow this device, light, dark. The pressed one is a lighter segment. 28px segments on the bar, 40px in the footer on narrow screens.
@@ -374,3 +391,5 @@ A bordered strip that says what just happened: a drawn 18px line icon, then the 
 - **Don't** animate anything except the heat strips drawing in once on load and 150ms colour changes on hover and focus.
 - **Don't** use a green dot for "running"; green here means idle.
 - **Don't** reuse the tracked Greek capitals of the wordmark as a label style elsewhere.
+- **Don't** use the display size, or the verdigris band, inside the console.
+- **Don't** show anything on the public site that is not true of the product; example data is labelled as such.

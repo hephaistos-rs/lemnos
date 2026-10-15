@@ -1,11 +1,11 @@
-// /proxmox: the environments Lemnos manages, shown as "Environments".
+// /environments: the environments Lemnos manages. Admins only: this is
+// where addresses and service logins are kept.
 // Proxmox VE is the only provider so far. This page lists them and adds or
 // removes one; `environment.rs` shows what runs on one.
 // Talking to Proxmox itself is `lemnos-proxmox`'s job.
 
 use std::error::Error;
 
-use lemnos_auth::User;
 use lemnos_db::{
     Database, NewProxmoxEnvironment, ProxmoxEnvironment, ProxmoxEnvironmentId, ProxmoxLogin,
     ProxmoxStoreError,
@@ -17,29 +17,18 @@ use topcoat::{
     context::Cx,
     router::{
         content::Form,
-        error::{RouterErrorExt, SeeOther, see_other},
+        error::{SeeOther, see_other},
         href, page, query_params, route,
     },
     view::{View, view},
 };
 
-use crate::{
-    app::auth::{current_user, sign_in, state},
-    components::notice,
-    config::ProxmoxConfig,
-};
+use crate::{access::admin_access, app::auth::state, components::notice, config::ProxmoxConfig};
 
 pub mod environment;
 
 pub fn database(cx: &Cx) -> &Database {
     state(cx).auth.store()
-}
-
-/// The signed-in user; visitors are sent to the sign-in page instead.
-pub async fn require_user(cx: &Cx) -> Result<User> {
-    Ok(current_user(cx)
-        .await?
-        .ok_or_redirect(href!(sign_in::page).resolve(cx))?)
 }
 
 /// The stored details, as the two values `lemnos-proxmox` connects with.
@@ -149,7 +138,7 @@ fn signs_in_as(environment: &ProxmoxEnvironment) -> String {
 
 #[page]
 pub async fn page(cx: &Cx) -> Result<impl View> {
-    require_user(cx).await?;
+    admin_access(cx).await?;
     let query = query_params::<Query>(cx)?;
     let environments = database(cx).proxmox_environments().await?;
 
@@ -226,7 +215,7 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
                         </table>
                     </div>
                     <p class="text-meta text-ink-faint">
-                        "Removing an environment only makes Lemnos forget it. Nothing changes on the provider's side."
+                        "Removing an environment only makes Lemnos forget it, and takes it away from the organisations that were given it. Nothing changes on the provider's side."
                     </p>
                 </div>
 
@@ -340,7 +329,7 @@ pub struct NewEnvironmentForm {
 
 #[route(POST)]
 pub async fn add(cx: &Cx, Form(input): Form<NewEnvironmentForm>) -> Result<SeeOther> {
-    require_user(cx).await?;
+    admin_access(cx).await?;
     let name = input.name.trim();
     let url = input.url.trim();
     let user = input.user.trim();
@@ -387,7 +376,7 @@ pub struct RemoveForm {
 // Only forgets the environment here; nothing changes on the Proxmox side.
 #[route(POST "./remove")]
 pub async fn remove(cx: &Cx, Form(input): Form<RemoveForm>) -> Result<SeeOther> {
-    require_user(cx).await?;
+    admin_access(cx).await?;
     database(cx)
         .delete_proxmox_environment(ProxmoxEnvironmentId(input.id))
         .await?;

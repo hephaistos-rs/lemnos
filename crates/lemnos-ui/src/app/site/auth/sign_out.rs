@@ -20,5 +20,5 @@ pub async fn sign_out(cx: &Cx) -> Result<SeeOther> {
     if let Some(hash) = session::stop(cx).await? {
         state(cx).auth.end_session(&SessionId(*hash)).await?;
     }
-    Ok(see_other(href!(crate::app::home).resolve(cx)))
+    Ok(see_other(href!(crate::app::site::home).resolve(cx)))
 }
