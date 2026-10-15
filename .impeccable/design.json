@@ -1,0 +1,739 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-11T21:19:18.153Z",
+  "title": "Design System: Lemnos",
+  "extensions": {
+    "colorMeta": {
+      "bronze": {
+        "role": "primary",
+        "displayName": "Polished Bronze",
+        "canonical": "light-dark(#c98232, #cd8a3e)",
+        "light": "#c98232",
+        "dark": "#cd8a3e",
+        "oklch": "light-dark(oklch(66.7% 0.127 65), oklch(68.7% 0.122 66))",
+        "tonalRamp": [
+          "#160700",
+          "#3a1f00",
+          "#603804",
+          "#8e5300",
+          "#ba7420",
+          "#de9648",
+          "#fec082",
+          "#ffebd8"
+        ]
+      },
+      "bronze-hover": {
+        "role": "primary",
+        "displayName": "Worked Bronze",
+        "canonical": "light-dark(#b8721f, #dd9d54)",
+        "light": "#b8721f",
+        "dark": "#dd9d54",
+        "oklch": "light-dark(oklch(61.5% 0.127 65), oklch(74.4% 0.118 68))",
+        "tonalRamp": [
+          "#170700",
+          "#3a1f00",
+          "#603705",
+          "#8e5301",
+          "#ba7421",
+          "#de9649",
+          "#febf83",
+          "#ffebd8"
+        ]
+      },
+      "on-bronze": {
+        "role": "primary",
+        "displayName": "Forge Black",
+        "canonical": "#1b1004",
+        "oklch": "oklch(18.4% 0.030 70)",
+        "tonalRamp": [
+          "#130901",
+          "#302416",
+          "#4d4031",
+          "#6f6151",
+          "#928373",
+          "#b4a594",
+          "#dbcbb9",
+          "#fcecda"
+        ]
+      },
+      "bronze-text": {
+        "role": "primary",
+        "displayName": "Bronze Ink",
+        "canonical": "light-dark(#8a4d12, #e2a660)",
+        "light": "#8a4d12",
+        "dark": "#e2a660",
+        "oklch": "light-dark(oklch(48.3% 0.107 58), oklch(76.8% 0.112 69))",
+        "tonalRamp": [
+          "#180600",
+          "#3d1d00",
+          "#643403",
+          "#8f5219",
+          "#b67540",
+          "#da9761",
+          "#fdbf90",
+          "#feeadc"
+        ]
+      },
+      "patina": {
+        "role": "secondary",
+        "displayName": "Patina",
+        "canonical": "light-dark(#1f7468, #62b8a8)",
+        "light": "#1f7468",
+        "dark": "#62b8a8",
+        "oklch": "light-dark(oklch(50.6% 0.081 181), oklch(72.4% 0.087 180))",
+        "tonalRamp": [
+          "#000f0c",
+          "#002e28",
+          "#034e45",
+          "#1c7266",
+          "#479689",
+          "#6ab9ab",
+          "#90e0d1",
+          "#b9fff1"
+        ]
+      },
+      "shell": {
+        "role": "secondary",
+        "displayName": "Verdigris",
+        "canonical": "light-dark(#0f4a45, #0a3532)",
+        "light": "#0f4a45",
+        "dark": "#0a3532",
+        "oklch": "light-dark(oklch(37.1% 0.059 187), oklch(30.0% 0.046 188))",
+        "tonalRamp": [
+          "#000f0d",
+          "#022d2a",
+          "#124c47",
+          "#386e68",
+          "#5c928c",
+          "#7db4ad",
+          "#a2dbd4",
+          "#c3fcf5"
+        ]
+      },
+      "shell-raised": {
+        "role": "secondary",
+        "displayName": "Raised Verdigris",
+        "canonical": "light-dark(#17605a, #114943)",
+        "light": "#17605a",
+        "dark": "#114943",
+        "oklch": "light-dark(oklch(44.4% 0.070 187), oklch(36.8% 0.057 185))",
+        "tonalRamp": [
+          "#000f0d",
+          "#002e2a",
+          "#024d48",
+          "#2b706a",
+          "#51948d",
+          "#73b6af",
+          "#99ddd5",
+          "#b9fef6"
+        ]
+      },
+      "shell-ink": {
+        "role": "secondary",
+        "displayName": "Shell Ink",
+        "canonical": "#e6f1ec",
+        "oklch": "oklch(94.8% 0.013 167)",
+        "tonalRamp": [
+          "#060d0a",
+          "#202925",
+          "#3c4541",
+          "#5c6662",
+          "#7f8984",
+          "#a0aaa6",
+          "#c6d1cc",
+          "#e6f2ec"
+        ]
+      },
+      "shell-muted": {
+        "role": "secondary",
+        "displayName": "Shell Muted",
+        "canonical": "#a9cdc3",
+        "oklch": "oklch(81.9% 0.041 177)",
+        "tonalRamp": [
+          "#000f0b",
+          "#0c2d26",
+          "#294a42",
+          "#4a6b62",
+          "#6c8f85",
+          "#8db1a7",
+          "#b3d7cd",
+          "#d3f8ee"
+        ]
+      },
+      "danger": {
+        "role": "tertiary",
+        "displayName": "Cinnabar",
+        "canonical": "light-dark(#b3351f, #c4452f)",
+        "light": "#b3351f",
+        "dark": "#c4452f",
+        "oklch": "light-dark(oklch(51.5% 0.166 32), oklch(56.4% 0.166 32))",
+        "tonalRamp": [
+          "#200000",
+          "#4d0700",
+          "#7b1604",
+          "#ae301a",
+          "#d75740",
+          "#fe7a61",
+          "#fdbbad",
+          "#fee9e4"
+        ]
+      },
+      "on-danger": {
+        "role": "tertiary",
+        "displayName": "White on Cinnabar",
+        "canonical": "#ffffff",
+        "oklch": "oklch(100.0% 0.000 0)",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#262626",
+          "#424242",
+          "#636363",
+          "#868686",
+          "#a8a8a8",
+          "#cecece",
+          "#eeeeee"
+        ]
+      },
+      "danger-text": {
+        "role": "tertiary",
+        "displayName": "Cinnabar Ink",
+        "canonical": "light-dark(#a32b18, #f39480)",
+        "light": "#a32b18",
+        "dark": "#f39480",
+        "oklch": "light-dark(oklch(47.6% 0.159 32), oklch(76.0% 0.119 33))",
+        "tonalRamp": [
+          "#200000",
+          "#4d0600",
+          "#7c1403",
+          "#ab3320",
+          "#d55a45",
+          "#fb7d66",
+          "#febbad",
+          "#ffe9e4"
+        ]
+      },
+      "warning-text": {
+        "role": "tertiary",
+        "displayName": "Straw Ink",
+        "canonical": "light-dark(#7a5a00, #e6c15a)",
+        "light": "#7a5a00",
+        "dark": "#e6c15a",
+        "oklch": "light-dark(oklch(48.8% 0.100 84), oklch(82.3% 0.128 90))",
+        "tonalRamp": [
+          "#120900",
+          "#332300",
+          "#563e00",
+          "#7e5e07",
+          "#a28137",
+          "#c5a35a",
+          "#ecc980",
+          "#ffedc9"
+        ]
+      },
+      "heat-1": {
+        "role": "tertiary",
+        "displayName": "Heat 1, Patina Green",
+        "canonical": "#4fae9d",
+        "oklch": "oklch(68.9% 0.094 180)",
+        "tonalRamp": [
+          "#000f0c",
+          "#022e27",
+          "#004e44",
+          "#0b7365",
+          "#379988",
+          "#5dbbaa",
+          "#84e2d0",
+          "#bcfef0"
+        ]
+      },
+      "heat-2": {
+        "role": "tertiary",
+        "displayName": "Heat 2, Bronze",
+        "canonical": "#c8853a",
+        "oklch": "oklch(67.2% 0.122 66)",
+        "tonalRamp": [
+          "#160700",
+          "#3a1f00",
+          "#603801",
+          "#8c550a",
+          "#b77527",
+          "#db974d",
+          "#fec080",
+          "#ffebd8"
+        ]
+      },
+      "heat-3": {
+        "role": "tertiary",
+        "displayName": "Heat 3, Straw",
+        "canonical": "#e6c15a",
+        "oklch": "oklch(82.3% 0.128 90)",
+        "tonalRamp": [
+          "#110a00",
+          "#312501",
+          "#534000",
+          "#7a6006",
+          "#a38216",
+          "#c7a339",
+          "#efca63",
+          "#ffedc0"
+        ]
+      },
+      "heat-4": {
+        "role": "tertiary",
+        "displayName": "Heat 4, Copper",
+        "canonical": "#d0603a",
+        "oklch": "oklch(62.0% 0.152 39)",
+        "tonalRamp": [
+          "#1e0100",
+          "#471100",
+          "#742404",
+          "#a73a0f",
+          "#d0603a",
+          "#f6825c",
+          "#fdbca7",
+          "#ffe9e2"
+        ]
+      },
+      "heat-5": {
+        "role": "tertiary",
+        "displayName": "Heat 5, Violet",
+        "canonical": "#8a5fb8",
+        "oklch": "oklch(56.9% 0.139 305)",
+        "tonalRamp": [
+          "#140027",
+          "#37015b",
+          "#54277c",
+          "#764ba2",
+          "#996ec9",
+          "#bc90ed",
+          "#dbbffe",
+          "#f3eaff"
+        ]
+      },
+      "ground": {
+        "role": "neutral",
+        "displayName": "Ground",
+        "canonical": "light-dark(#e6eeea, #0b1c1b)",
+        "light": "#e6eeea",
+        "dark": "#0b1c1b",
+        "oklch": "light-dark(oklch(94.2% 0.010 165), oklch(21.1% 0.023 191))",
+        "tonalRamp": [
+          "#070d0a",
+          "#222825",
+          "#3e4441",
+          "#5e6562",
+          "#818885",
+          "#a2aaa6",
+          "#c8d0cc",
+          "#e9f1ed"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Surface",
+        "canonical": "light-dark(#f4f8f6, #10292a)",
+        "light": "#f4f8f6",
+        "dark": "#10292a",
+        "oklch": "light-dark(oklch(97.6% 0.005 165), oklch(26.2% 0.031 199))",
+        "tonalRamp": [
+          "#090c0b",
+          "#242726",
+          "#404342",
+          "#616462",
+          "#838785",
+          "#a5a9a7",
+          "#cbcfcd",
+          "#ecefed"
+        ]
+      },
+      "sunken": {
+        "role": "neutral",
+        "displayName": "Sunken",
+        "canonical": "light-dark(#d8e3de, #163536)",
+        "light": "#d8e3de",
+        "dark": "#163536",
+        "oklch": "light-dark(oklch(90.6% 0.014 167), oklch(30.6% 0.037 198))",
+        "tonalRamp": [
+          "#060d0a",
+          "#202925",
+          "#3c4541",
+          "#5c6662",
+          "#7f8984",
+          "#a0aba6",
+          "#c6d1cc",
+          "#e6f2ec"
+        ]
+      },
+      "field": {
+        "role": "neutral",
+        "displayName": "Field",
+        "canonical": "light-dark(#ffffff, #0b1c1b)",
+        "light": "#ffffff",
+        "dark": "#0b1c1b",
+        "oklch": "light-dark(oklch(100.0% 0.000 0), oklch(21.1% 0.023 191))",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#262626",
+          "#424242",
+          "#636363",
+          "#868686",
+          "#a8a8a8",
+          "#cecece",
+          "#eeeeee"
+        ]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Line",
+        "canonical": "light-dark(#bccbc5, #24494a)",
+        "light": "#bccbc5",
+        "dark": "#24494a",
+        "oklch": "light-dark(oklch(82.9% 0.018 170), oklch(37.8% 0.042 198))",
+        "tonalRamp": [
+          "#040e0a",
+          "#1e2925",
+          "#394641",
+          "#596762",
+          "#7c8a84",
+          "#9daca6",
+          "#c3d2cc",
+          "#e3f3ec"
+        ]
+      },
+      "line-strong": {
+        "role": "neutral",
+        "displayName": "Strong Line",
+        "canonical": "light-dark(#6f8a83, #4a7d7a)",
+        "light": "#6f8a83",
+        "dark": "#4a7d7a",
+        "oklch": "light-dark(oklch(61.0% 0.033 178), oklch(55.3% 0.055 191))",
+        "tonalRamp": [
+          "#000f0b",
+          "#132c26",
+          "#2f4842",
+          "#506a63",
+          "#728d86",
+          "#93afa7",
+          "#b8d5cd",
+          "#d9f6ee"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "light-dark(#0d2523, #e8efe9)",
+        "light": "#0d2523",
+        "dark": "#e8efe9",
+        "oklch": "light-dark(oklch(24.5% 0.030 188), oklch(94.5% 0.011 150))",
+        "tonalRamp": [
+          "#000f0d",
+          "#132b29",
+          "#2f4845",
+          "#506966",
+          "#728c89",
+          "#93aeab",
+          "#b8d5d1",
+          "#d9f6f2"
+        ]
+      },
+      "ink-muted": {
+        "role": "neutral",
+        "displayName": "Muted Ink",
+        "canonical": "light-dark(#3f5d58, #a8c0b9)",
+        "light": "#3f5d58",
+        "dark": "#a8c0b9",
+        "oklch": "light-dark(oklch(45.3% 0.036 183), oklch(78.8% 0.028 176))",
+        "tonalRamp": [
+          "#000f0c",
+          "#0e2c28",
+          "#2b4944",
+          "#4c6a65",
+          "#6e8e88",
+          "#8fb0aa",
+          "#b5d6d0",
+          "#d5f7f1"
+        ]
+      },
+      "ink-faint": {
+        "role": "neutral",
+        "displayName": "Faint Ink",
+        "canonical": "light-dark(#4f6963, #84a09a)",
+        "light": "#4f6963",
+        "dark": "#84a09a",
+        "oklch": "light-dark(oklch(49.8% 0.032 179), oklch(68.3% 0.032 181))",
+        "tonalRamp": [
+          "#000f0b",
+          "#132c27",
+          "#2f4843",
+          "#506a64",
+          "#728d86",
+          "#93afa8",
+          "#b8d5ce",
+          "#d9f6ef"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "title": {
+        "displayName": "Title",
+        "purpose": "The page title, one per page."
+      },
+      "lead": {
+        "displayName": "Lead",
+        "purpose": "Section titles; the machine name at the head of a stacked row; the tagline under Sign in."
+      },
+      "base": {
+        "displayName": "Base",
+        "purpose": "Body text, table cells, buttons and nav links."
+      },
+      "meta": {
+        "displayName": "Meta",
+        "purpose": "Labels, hints, table headers, small buttons, back links, footer."
+      },
+      "figure": {
+        "displayName": "Figure",
+        "purpose": "IDs, addresses, percentages and sizes: anything compared digit by digit. Tabular numerals."
+      },
+      "wordmark": {
+        "displayName": "Wordmark",
+        "purpose": "The name Lemnos in the bar."
+      },
+      "wordmark-greek": {
+        "displayName": "Wordmark, Greek",
+        "purpose": "ΛΗΜΝΟΣ beside the wordmark. This lockup only; decorative and hidden from assistive technology."
+      }
+    },
+    "shadows": [
+      {
+        "name": "heat-track-hairline",
+        "value": "inset 0 0 0 1px var(--color-line)",
+        "purpose": "A 1px edge around a heat track. The only shadow declaration; nothing casts a shadow."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out-expo",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Easing for the heat strips drawing in."
+      },
+      {
+        "name": "heat-in",
+        "value": "0.8s var(--ease-out-expo) both",
+        "purpose": "Each heat strip uncovers once from the left on load. Skipped under prefers-reduced-motion."
+      },
+      {
+        "name": "state-transition",
+        "value": "150ms",
+        "purpose": "Colour, background and border changes on hover and focus. Nothing changes size or position."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "40rem",
+        "purpose": "Below: nav drops to a second line, theme switch moves from the bar to the footer, gutters 1rem."
+      },
+      {
+        "name": "lg",
+        "value": "64rem",
+        "purpose": "From here a form sits beside its table in a fixed 24rem column."
+      },
+      {
+        "name": "table",
+        "value": "75rem",
+        "purpose": "Below: stacking tables become blocks in as many columns as fit at a 21rem minimum."
+      },
+      {
+        "name": "wide",
+        "value": "90rem",
+        "purpose": "From here heat tracks widen from 6rem to 9rem."
+      }
+    ],
+    "focus": {
+      "value": "2px solid var(--color-bronze-text)",
+      "offset": "2px",
+      "purpose": "One keyboard focus ring for everything; shell ink on the bar; flush (offset 0) on inputs."
+    },
+    "pageWidths": [
+      {
+        "name": "page",
+        "value": "84rem",
+        "purpose": "Pages of tables; also the bar and footer."
+      },
+      {
+        "name": "page-mid",
+        "value": "44rem",
+        "purpose": "Settings."
+      },
+      {
+        "name": "page-narrow",
+        "value": "26rem",
+        "purpose": "A single form."
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one bronze action that moves things forward: Start, Resume, Sign in, Add.",
+      "html": "<button class=\"ds-btn ds-btn-primary\">Add environment</button>",
+      "css": ".ds-btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.375rem 0.875rem; font: 500 0.9375rem/1.5rem var(--font-sans, \"Commissioner\", ui-sans-serif, system-ui, sans-serif); color: var(--color-ink, light-dark(#0d2523, #e8efe9)); background: var(--color-sunken, light-dark(#d8e3de, #163536)); border: 1px solid var(--color-line-strong, light-dark(#6f8a83, #4a7d7a)); border-radius: var(--radius-control, 0.25rem); cursor: pointer; transition: color 150ms, background-color 150ms, border-color 150ms; } .ds-btn:hover { background: var(--color-line, light-dark(#bccbc5, #24494a)); } .ds-btn:focus-visible { outline: 2px solid var(--color-bronze-text, light-dark(#8a4d12, #e2a660)); outline-offset: 2px; } .ds-btn-primary { background: var(--color-bronze, light-dark(#c98232, #cd8a3e)); color: var(--color-on-bronze, #1b1004); border-color: transparent; } .ds-btn-primary:hover { background: var(--color-bronze-hover, light-dark(#b8721f, #dd9d54)); }"
+    },
+    {
+      "name": "Button",
+      "kind": "button",
+      "refersTo": "button",
+      "description": "The ordinary pressed-in button, with its small variant for table rows.",
+      "html": "<div class=\"ds-btn-row\"><button class=\"ds-btn\">Try again</button><button class=\"ds-btn ds-btn-sm\">Shut down</button><button class=\"ds-btn ds-btn-sm\">Reboot</button></div>",
+      "css": ".ds-btn-row { display: flex; align-items: center; gap: 0.375rem; } .ds-btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.375rem 0.875rem; font: 500 0.9375rem/1.5rem var(--font-sans, \"Commissioner\", ui-sans-serif, system-ui, sans-serif); color: var(--color-ink, light-dark(#0d2523, #e8efe9)); background: var(--color-sunken, light-dark(#d8e3de, #163536)); border: 1px solid var(--color-line-strong, light-dark(#6f8a83, #4a7d7a)); border-radius: var(--radius-control, 0.25rem); cursor: pointer; transition: color 150ms, background-color 150ms, border-color 150ms; } .ds-btn:hover { background: var(--color-line, light-dark(#bccbc5, #24494a)); } .ds-btn:focus-visible { outline: 2px solid var(--color-bronze-text, light-dark(#8a4d12, #e2a660)); outline-offset: 2px; } .ds-btn-sm { padding: 0.125rem 0.625rem; font-size: 0.8125rem; line-height: 1.25rem; }"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Stop, Remove, Turn off. Ordinary at rest; cinnabar only under the pointer or keyboard focus.",
+      "html": "<button class=\"ds-btn ds-btn-sm ds-btn-danger\">Stop</button>",
+      "css": ".ds-btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.375rem 0.875rem; font: 500 0.9375rem/1.5rem var(--font-sans, \"Commissioner\", ui-sans-serif, system-ui, sans-serif); color: var(--color-ink, light-dark(#0d2523, #e8efe9)); background: var(--color-sunken, light-dark(#d8e3de, #163536)); border: 1px solid var(--color-line-strong, light-dark(#6f8a83, #4a7d7a)); border-radius: var(--radius-control, 0.25rem); cursor: pointer; transition: color 150ms, background-color 150ms, border-color 150ms; } .ds-btn:hover { background: var(--color-line, light-dark(#bccbc5, #24494a)); } .ds-btn:focus-visible { outline: 2px solid var(--color-bronze-text, light-dark(#8a4d12, #e2a660)); outline-offset: 2px; } .ds-btn-sm { padding: 0.125rem 0.625rem; font-size: 0.8125rem; line-height: 1.25rem; } .ds-btn-danger:is(:hover, :focus-visible) { background: var(--color-danger, light-dark(#b3351f, #c4452f)); color: var(--color-on-danger, #ffffff); border-color: var(--color-danger, light-dark(#b3351f, #c4452f)); }"
+    },
+    {
+      "name": "Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Label above, input, optional hint below. Focus is a bronze-ink border and ring.",
+      "html": "<div class=\"ds-field\"><label class=\"ds-label\" for=\"ds-token\">API token name</label><input class=\"ds-input\" id=\"ds-token\" type=\"text\" placeholder=\"lemnos\"><p class=\"ds-hint\">Leave empty to sign in with the user's password.</p></div>",
+      "css": ".ds-field { display: flex; flex-direction: column; gap: 0.375rem; max-width: 22rem; font-family: var(--font-sans, \"Commissioner\", ui-sans-serif, system-ui, sans-serif); } .ds-label { font-size: 0.8125rem; line-height: 1.25rem; font-weight: 500; color: var(--color-ink-muted, light-dark(#3f5d58, #a8c0b9)); } .ds-hint { margin: 0; font-size: 0.8125rem; line-height: 1.25rem; color: var(--color-ink-faint, light-dark(#4f6963, #84a09a)); } .ds-input { width: 100%; padding: 0.5rem 0.75rem; font: 400 0.9375rem/1.5rem var(--font-sans, \"Commissioner\", ui-sans-serif, system-ui, sans-serif); color: var(--color-ink, light-dark(#0d2523, #e8efe9)); background: var(--color-field, light-dark(#ffffff, #0b1c1b)); border: 1px solid var(--color-line-strong, light-dark(#6f8a83, #4a7d7a)); border-radius: var(--radius-control, 0.25rem); caret-color: var(--color-bronze-text, light-dark(#8a4d12, #e2a660)); transition: border-color 150ms; } .ds-input::placeholder { color: var(--color-ink-faint, light-dark(#4f6963, #84a09a)); } .ds-input:hover { border-color: var(--color-ink-faint, light-dark(#4f6963, #84a09a)); } .ds-input:focus-visible { outline: 2px solid var(--color-bronze-text, light-dark(#8a4d12, #e2a660)); outline-offset: 0; border-color: var(--color-bronze-text, light-dark(#8a4d12, #e2a660)); }"
+    },
+    {
+      "name": "Shell Bar",
+      "kind": "nav",
+      "refersTo": "shell",
+      "description": "The verdigris bar on every page: wordmark with the Greek name, nav with a bronze line under the current page, theme switch, account, sign out.",
+      "html": "<header class=\"ds-shell\"><a class=\"ds-wordmark\" href=\"#\" aria-label=\"Lemnos\">Lemnos<span class=\"ds-wordmark-greek\" aria-hidden=\"true\">ΛΗΜΝΟΣ</span></a><nav class=\"ds-shell-nav\" aria-label=\"Main\"><a href=\"#\" aria-current=\"page\">Machines</a><a href=\"#\">Environments</a></nav><div class=\"ds-shell-end\"><div class=\"ds-theme\" role=\"group\" aria-label=\"Theme\"><button aria-pressed=\"true\" aria-label=\"Follow this device\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"1.75\" y=\"2.75\" width=\"12.5\" height=\"8.5\" rx=\"1\"></rect><path d=\"M5.5 13.75h5\"></path></svg></button><button aria-pressed=\"false\" aria-label=\"Light\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"8\" cy=\"8\" r=\"2.75\"></circle><path d=\"M8 1.5v1.5M8 13v1.5M1.5 8H3M13 8h1.5M3.4 3.4l1.05 1.05M11.55 11.55l1.05 1.05M3.4 12.6l1.05-1.05M11.55 4.45l1.05-1.05\"></path></svg></button><button aria-pressed=\"false\" aria-label=\"Dark\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M13.25 9.6A5.75 5.75 0 0 1 6.4 2.75a5.75 5.75 0 1 0 6.85 6.85Z\"></path></svg></button></div><a class=\"ds-shell-link\" href=\"#\">forge-review</a><button class=\"ds-shell-btn\">Sign out</button></div></header>",
+      "css": ".ds-shell { display: flex; align-items: center; gap: 2rem; min-height: 3.5rem; padding: 0 1.5rem; background: var(--color-shell, light-dark(#0f4a45, #0a3532)); color: var(--color-shell-ink, #e6f1ec); font: 400 0.9375rem/1.5rem var(--font-sans, \"Commissioner\", ui-sans-serif, system-ui, sans-serif); } .ds-shell :focus-visible { outline: 2px solid var(--color-shell-ink, #e6f1ec); outline-offset: 2px; } .ds-wordmark { display: flex; align-items: baseline; gap: 0.625rem; font-size: 1.125rem; font-weight: 700; letter-spacing: -0.01em; color: var(--color-shell-ink, #e6f1ec); text-decoration: none; } .ds-wordmark-greek { font-size: 0.8125rem; font-weight: 500; letter-spacing: 0.16em; color: var(--color-shell-muted, #a9cdc3); } .ds-shell-nav { display: flex; align-self: stretch; align-items: stretch; gap: 0.25rem; } .ds-shell-nav a { display: flex; align-items: center; padding: 0.5rem 0.75rem; font-weight: 500; color: var(--color-shell-muted, #a9cdc3); text-decoration: none; border-bottom: 2px solid transparent; transition: color 150ms; } .ds-shell-nav a:hover { color: var(--color-shell-ink, #e6f1ec); } .ds-shell-nav a[aria-current=\"page\"] { color: var(--color-shell-ink, #e6f1ec); border-bottom-color: var(--color-bronze, light-dark(#c98232, #cd8a3e)); } .ds-shell-end { margin-left: auto; display: flex; align-items: center; gap: 0.75rem; } .ds-shell-link { padding: 0.25rem 0.5rem; font-weight: 500; color: var(--color-shell-muted, #a9cdc3); text-decoration: none; border-radius: var(--radius-control, 0.25rem); transition: color 150ms; } .ds-shell-link:hover { color: var(--color-shell-ink, #e6f1ec); } .ds-shell-btn { padding: 0.125rem 0.625rem; font: 500 0.8125rem/1.25rem var(--font-sans, \"Commissioner\", ui-sans-serif, system-ui, sans-serif); color: var(--color-shell-ink, #e6f1ec); background: var(--color-shell-raised, light-dark(#17605a, #114943)); border: 1px solid transparent; border-radius: var(--radius-control, 0.25rem); cursor: pointer; } .ds-shell-btn:hover { filter: brightness(1.25); } .ds-theme { display: flex; padding: 0.125rem; background: var(--color-shell-raised, light-dark(#17605a, #114943)); border-radius: var(--radius-control, 0.25rem); } .ds-theme button { display: grid; place-items: center; width: 1.75rem; height: 1.75rem; padding: 0; color: var(--color-shell-muted, #a9cdc3); background: none; border: 0; border-radius: calc(var(--radius-control, 0.25rem) - 1px); cursor: pointer; transition: color 150ms, background-color 150ms; } .ds-theme button:hover { color: var(--color-shell-ink, #e6f1ec); } .ds-theme button[aria-pressed=\"true\"] { background: var(--color-shell, light-dark(#0f4a45, #0a3532)); color: var(--color-shell-ink, #e6f1ec); }"
+    },
+    {
+      "name": "State Marks",
+      "kind": "chip",
+      "refersTo": "state",
+      "description": "A mark and a word. Shapes differ as well as colours: disc running, ring stopped, split disc paused, square template, struck ring unreachable.",
+      "html": "<div class=\"ds-state-row\"><span class=\"ds-state ds-state-running\">Running</span><span class=\"ds-state ds-state-stopped\">Stopped</span><span class=\"ds-state ds-state-paused\">Paused</span><span class=\"ds-state ds-state-template\">Template</span><span class=\"ds-state ds-state-down\">Offline</span></div>",
+      "css": ".ds-state-row { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; } .ds-state { display: inline-flex; align-items: center; gap: 0.5rem; font: 400 0.9375rem/1.5rem var(--font-sans, \"Commissioner\", ui-sans-serif, system-ui, sans-serif); color: var(--color-ink, light-dark(#0d2523, #e8efe9)); } .ds-state::before { content: ''; display: block; flex: none; width: 0.625rem; height: 0.625rem; border-radius: 9999px; border: 2px solid currentColor; } .ds-state-running::before { background: var(--color-bronze, light-dark(#c98232, #cd8a3e)); border-color: var(--color-bronze, light-dark(#c98232, #cd8a3e)); } .ds-state-stopped { color: var(--color-ink-muted, light-dark(#3f5d58, #a8c0b9)); } .ds-state-stopped::before { border-color: var(--color-patina, light-dark(#1f7468, #62b8a8)); } .ds-state-paused::before { border-color: var(--color-warning-text, light-dark(#7a5a00, #e6c15a)); background: linear-gradient(90deg, var(--color-warning-text, light-dark(#7a5a00, #e6c15a)) 50%, transparent 50%); } .ds-state-template { color: var(--color-ink-muted, light-dark(#3f5d58, #a8c0b9)); } .ds-state-template::before { border-radius: 0; border-color: var(--color-ink-faint, light-dark(#4f6963, #84a09a)); } .ds-state-down { color: var(--color-danger-text, light-dark(#a32b18, #f39480)); } .ds-state-down::before { border-color: var(--color-danger, light-dark(#b3351f, #c4452f)); background: linear-gradient(135deg, transparent 40%, var(--color-danger, light-dark(#b3351f, #c4452f)) 40% 60%, transparent 60%); }"
+    },
+    {
+      "name": "Heat Strip",
+      "kind": "custom",
+      "refersTo": "heat-track",
+      "description": "Signature. Load as a strip uncovered from one fixed gradient, with its figure in mono; a longer strip is also a hotter one.",
+      "html": "<div class=\"ds-heat-list\"><div class=\"ds-heat\"><div class=\"ds-heat-track\" aria-hidden=\"true\"><span style=\"--v: 5%\"></span></div><span class=\"ds-heat-figure\">5%</span></div><div class=\"ds-heat\"><div class=\"ds-heat-track\" aria-hidden=\"true\"><span style=\"--v: 38%\"></span></div><span class=\"ds-heat-figure\">38%</span></div><div class=\"ds-heat\"><div class=\"ds-heat-track\" aria-hidden=\"true\"><span style=\"--v: 64%\"></span></div><span class=\"ds-heat-figure\">64%</span></div><div class=\"ds-heat\"><div class=\"ds-heat-track\" aria-hidden=\"true\"><span style=\"--v: 91%\"></span></div><span class=\"ds-heat-figure\">91%</span></div></div>",
+      "css": ".ds-heat-list { display: flex; flex-direction: column; gap: 0.75rem; } .ds-heat { display: flex; align-items: center; gap: 0.625rem; } .ds-heat-track { position: relative; flex: none; width: 9rem; height: 0.5rem; overflow: hidden; background: var(--color-sunken, light-dark(#d8e3de, #163536)); border-radius: 1px; box-shadow: inset 0 0 0 1px var(--color-line, light-dark(#bccbc5, #24494a)); } .ds-heat-track span { position: absolute; inset: 0; background: linear-gradient(90deg, var(--color-heat-1, #4fae9d) 0%, var(--color-heat-2, #c8853a) 35%, var(--color-heat-3, #e6c15a) 60%, var(--color-heat-4, #d0603a) 82%, var(--color-heat-5, #8a5fb8) 100%); clip-path: inset(0 calc(100% - var(--v, 0%)) 0 0); } .ds-heat-figure { font: 400 0.8125rem/1.25rem var(--font-mono, \"JetBrains Mono\", ui-monospace, monospace); font-variant-numeric: tabular-nums; color: var(--color-ink-muted, light-dark(#3f5d58, #a8c0b9)); white-space: nowrap; } @media (prefers-reduced-motion: no-preference) { .ds-heat-track span { animation: ds-heat-in 0.8s var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)) both; } } @keyframes ds-heat-in { from { clip-path: inset(0 100% 0 0); } }"
+    },
+    {
+      "name": "Notice",
+      "kind": "custom",
+      "refersTo": "notice",
+      "description": "What just happened, with a drawn icon first. A failure says what it means in plain words and folds the technical reason beneath.",
+      "html": "<div class=\"ds-notice-stack\"><div class=\"ds-notice ds-notice-success\" role=\"status\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 18 18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"9\" cy=\"9\" r=\"7.25\"></circle><path d=\"m5.75 9.25 2.25 2.25 4.25-4.75\"></path></svg><p>staging-api was rebooted.</p></div><div class=\"ds-notice ds-notice-danger\" role=\"alert\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 18 18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M9 2.25 16.25 15H1.75L9 2.25Z\"></path><path d=\"M9 7.25v3.5M9 12.9v.1\"></path></svg><div><p>Lemnos can't reach Datacentre West, so its machines are missing below. <a class=\"ds-link\" href=\"#\">Check Datacentre West</a></p><details><summary>Technical details</summary><p class=\"ds-notice-detail\">error sending request for url (https://pve-west.example.com:8006/api2/json/version)</p></details></div></div></div>",
+      "css": ".ds-notice-stack { display: flex; flex-direction: column; gap: 1rem; } .ds-notice { display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.75rem 1rem; font: 400 0.9375rem/1.5rem var(--font-sans, \"Commissioner\", ui-sans-serif, system-ui, sans-serif); color: var(--color-ink, light-dark(#0d2523, #e8efe9)); background: var(--color-surface, light-dark(#f4f8f6, #10292a)); border: 1px solid var(--color-line, light-dark(#bccbc5, #24494a)); border-radius: var(--radius-control, 0.25rem); } .ds-notice p { margin: 0; } .ds-notice svg { flex: none; margin-top: 0.125rem; color: var(--color-ink-muted, light-dark(#3f5d58, #a8c0b9)); } .ds-notice details { margin-top: 0.25rem; font-size: 0.8125rem; line-height: 1.25rem; color: var(--color-ink-muted, light-dark(#3f5d58, #a8c0b9)); } .ds-notice summary { cursor: pointer; text-decoration: underline; text-decoration-color: var(--color-line-strong, light-dark(#6f8a83, #4a7d7a)); text-underline-offset: 0.2em; } .ds-notice summary:focus-visible, .ds-link:focus-visible { outline: 2px solid var(--color-bronze-text, light-dark(#8a4d12, #e2a660)); outline-offset: 2px; } .ds-notice-detail { margin-top: 0.25rem; font-family: var(--font-mono, \"JetBrains Mono\", ui-monospace, monospace); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; } .ds-notice-success { border-color: var(--color-patina, light-dark(#1f7468, #62b8a8)); background: color-mix(in oklab, var(--color-patina, light-dark(#1f7468, #62b8a8)) 10%, var(--color-ground, light-dark(#e6eeea, #0b1c1b))); } .ds-notice-success svg { color: var(--color-patina, light-dark(#1f7468, #62b8a8)); } .ds-notice-danger { border-color: var(--color-danger, light-dark(#b3351f, #c4452f)); background: color-mix(in oklab, var(--color-danger, light-dark(#b3351f, #c4452f)) 10%, var(--color-ground, light-dark(#e6eeea, #0b1c1b))); } .ds-notice-danger svg { color: var(--color-danger-text, light-dark(#a32b18, #f39480)); } .ds-link { font-weight: 500; color: var(--color-bronze-text, light-dark(#8a4d12, #e2a660)); text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 0.2em; transition: text-decoration-color 150ms; } .ds-link:hover { text-decoration-color: currentColor; }"
+    },
+    {
+      "name": "Machines Table",
+      "kind": "custom",
+      "refersTo": "data-table",
+      "description": "The dense table every list uses: 36px header, 40px rows, state mark, mono ID, ink link, heat strips, power actions at the right. Idle rows step back.",
+      "html": "<div class=\"ds-data\"><table><thead><tr><th>State</th><th>ID</th><th>Name</th><th>Environment</th><th>CPU</th><th></th></tr></thead><tbody><tr><td><span class=\"ds-state ds-state-running\">Running</span></td><td class=\"ds-figure\">101</td><td class=\"ds-name\">build-runner-01</td><td><a class=\"ds-data-link\" href=\"#\">Lab</a></td><td><div class=\"ds-heat\"><div class=\"ds-heat-track\" aria-hidden=\"true\"><span style=\"--v: 91%\"></span></div><span class=\"ds-heat-figure\">91%</span></div></td><td><div class=\"ds-actions\"><button class=\"ds-btn ds-btn-sm\">Shut down</button><button class=\"ds-btn ds-btn-sm\">Reboot</button><button class=\"ds-btn ds-btn-sm ds-btn-danger\">Stop</button></div></td></tr><tr class=\"ds-idle\"><td><span class=\"ds-state ds-state-stopped\">Stopped</span></td><td class=\"ds-figure\">120</td><td class=\"ds-name\">docs-preview</td><td><a class=\"ds-data-link\" href=\"#\">Lab</a></td><td></td><td><div class=\"ds-actions\"><button class=\"ds-btn ds-btn-sm ds-btn-primary\">Start</button></div></td></tr></tbody></table></div>",
+      "css": ".ds-data { width: 100%; overflow-x: auto; font: 400 0.9375rem/1.5rem var(--font-sans, \"Commissioner\", ui-sans-serif, system-ui, sans-serif); color: var(--color-ink, light-dark(#0d2523, #e8efe9)); background: var(--color-surface, light-dark(#f4f8f6, #10292a)); border: 1px solid var(--color-line, light-dark(#bccbc5, #24494a)); border-radius: var(--radius-control, 0.25rem); } .ds-data table { width: 100%; border-collapse: collapse; } .ds-data th { height: 2.25rem; padding: 0 0.75rem; text-align: left; font-size: 0.8125rem; line-height: 1.25rem; font-weight: 500; color: var(--color-ink-muted, light-dark(#3f5d58, #a8c0b9)); white-space: nowrap; border-bottom: 1px solid var(--color-line-strong, light-dark(#6f8a83, #4a7d7a)); } .ds-data td { height: 2.5rem; padding: 0.25rem 0.75rem; white-space: nowrap; } .ds-data :is(th, td):first-child { padding-left: 1rem; } .ds-data :is(th, td):last-child { padding-right: 1rem; } .ds-data tbody tr:not(:last-child) { border-bottom: 1px solid var(--color-line, light-dark(#bccbc5, #24494a)); } .ds-data tbody tr:hover { background: var(--color-sunken, light-dark(#d8e3de, #163536)); } .ds-name { font-weight: 500; } .ds-idle .ds-name { font-weight: 400; color: var(--color-ink-muted, light-dark(#3f5d58, #a8c0b9)); } .ds-figure { font: 400 0.8125rem/1.25rem var(--font-mono, \"JetBrains Mono\", ui-monospace, monospace); font-variant-numeric: tabular-nums; } .ds-data-link { color: var(--color-ink, light-dark(#0d2523, #e8efe9)); text-decoration: underline; text-decoration-color: var(--color-line-strong, light-dark(#6f8a83, #4a7d7a)); text-underline-offset: 0.2em; transition: text-decoration-color 150ms; } .ds-data-link:hover { text-decoration-color: currentColor; } .ds-data-link:focus-visible { outline: 2px solid var(--color-bronze-text, light-dark(#8a4d12, #e2a660)); outline-offset: 2px; } .ds-actions { display: flex; justify-content: flex-end; gap: 0.375rem; } .ds-state { display: inline-flex; align-items: center; gap: 0.5rem; font: 400 0.9375rem/1.5rem var(--font-sans, \"Commissioner\", ui-sans-serif, system-ui, sans-serif); color: var(--color-ink, light-dark(#0d2523, #e8efe9)); } .ds-state::before { content: ''; display: block; flex: none; width: 0.625rem; height: 0.625rem; border-radius: 9999px; border: 2px solid currentColor; } .ds-state-running::before { background: var(--color-bronze, light-dark(#c98232, #cd8a3e)); border-color: var(--color-bronze, light-dark(#c98232, #cd8a3e)); } .ds-state-stopped { color: var(--color-ink-muted, light-dark(#3f5d58, #a8c0b9)); } .ds-state-stopped::before { border-color: var(--color-patina, light-dark(#1f7468, #62b8a8)); } .ds-state-paused::before { border-color: var(--color-warning-text, light-dark(#7a5a00, #e6c15a)); background: linear-gradient(90deg, var(--color-warning-text, light-dark(#7a5a00, #e6c15a)) 50%, transparent 50%); } .ds-state-template { color: var(--color-ink-muted, light-dark(#3f5d58, #a8c0b9)); } .ds-state-template::before { border-radius: 0; border-color: var(--color-ink-faint, light-dark(#4f6963, #84a09a)); } .ds-state-down { color: var(--color-danger-text, light-dark(#a32b18, #f39480)); } .ds-state-down::before { border-color: var(--color-danger, light-dark(#b3351f, #c4452f)); background: linear-gradient(135deg, transparent 40%, var(--color-danger, light-dark(#b3351f, #c4452f)) 40% 60%, transparent 60%); } .ds-heat { display: flex; align-items: center; gap: 0.625rem; } .ds-heat-track { position: relative; flex: none; width: 6rem; height: 0.5rem; overflow: hidden; background: var(--color-sunken, light-dark(#d8e3de, #163536)); border-radius: 1px; box-shadow: inset 0 0 0 1px var(--color-line, light-dark(#bccbc5, #24494a)); } .ds-heat-track span { position: absolute; inset: 0; background: linear-gradient(90deg, var(--color-heat-1, #4fae9d) 0%, var(--color-heat-2, #c8853a) 35%, var(--color-heat-3, #e6c15a) 60%, var(--color-heat-4, #d0603a) 82%, var(--color-heat-5, #8a5fb8) 100%); clip-path: inset(0 calc(100% - var(--v, 0%)) 0 0); } .ds-heat-figure { font: 400 0.8125rem/1.25rem var(--font-mono, \"JetBrains Mono\", ui-monospace, monospace); font-variant-numeric: tabular-nums; color: var(--color-ink-muted, light-dark(#3f5d58, #a8c0b9)); white-space: nowrap; } @media (prefers-reduced-motion: no-preference) { .ds-heat-track span { animation: ds-heat-in 0.8s var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)) both; } } @keyframes ds-heat-in { from { clip-path: inset(0 100% 0 0); } } .ds-btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.375rem 0.875rem; font: 500 0.9375rem/1.5rem var(--font-sans, \"Commissioner\", ui-sans-serif, system-ui, sans-serif); color: var(--color-ink, light-dark(#0d2523, #e8efe9)); background: var(--color-sunken, light-dark(#d8e3de, #163536)); border: 1px solid var(--color-line-strong, light-dark(#6f8a83, #4a7d7a)); border-radius: var(--radius-control, 0.25rem); cursor: pointer; transition: color 150ms, background-color 150ms, border-color 150ms; } .ds-btn:hover { background: var(--color-line, light-dark(#bccbc5, #24494a)); } .ds-btn:focus-visible { outline: 2px solid var(--color-bronze-text, light-dark(#8a4d12, #e2a660)); outline-offset: 2px; } .ds-btn-sm { padding: 0.125rem 0.625rem; font-size: 0.8125rem; line-height: 1.25rem; } .ds-btn-primary { background: var(--color-bronze, light-dark(#c98232, #cd8a3e)); color: var(--color-on-bronze, #1b1004); border-color: transparent; } .ds-btn-primary:hover { background: var(--color-bronze-hover, light-dark(#b8721f, #dd9d54)); } .ds-btn-danger:is(:hover, :focus-visible) { background: var(--color-danger, light-dark(#b3351f, #c4452f)); color: var(--color-on-danger, #ffffff); border-color: var(--color-danger, light-dark(#b3351f, #c4452f)); }"
+    },
+    {
+      "name": "Panel",
+      "kind": "card",
+      "refersTo": "panel",
+      "description": "A bordered area for one form or one group of settings. Never nested, never used as page layout.",
+      "html": "<section class=\"ds-panel\"><div class=\"ds-panel-head\"><h2 class=\"ds-section-title\">Two-factor codes</h2><span class=\"ds-state ds-state-stopped\">Off</span></div><p class=\"ds-panel-text\">Turn it on to require a code from an authenticator app after your password.</p><button class=\"ds-btn ds-btn-primary\">Set up</button></section>",
+      "css": ".ds-panel { display: flex; flex-direction: column; align-items: flex-start; gap: 1rem; max-width: 44rem; padding: 1.5rem; font: 400 0.9375rem/1.5rem var(--font-sans, \"Commissioner\", ui-sans-serif, system-ui, sans-serif); color: var(--color-ink, light-dark(#0d2523, #e8efe9)); background: var(--color-surface, light-dark(#f4f8f6, #10292a)); border: 1px solid var(--color-line, light-dark(#bccbc5, #24494a)); border-radius: var(--radius-control, 0.25rem); } .ds-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; align-self: stretch; } .ds-section-title { margin: 0; font-size: 1.125rem; line-height: 1.5rem; font-weight: 600; text-wrap: balance; } .ds-panel-text { margin: 0; max-width: 65ch; color: var(--color-ink-muted, light-dark(#3f5d58, #a8c0b9)); } .ds-state { display: inline-flex; align-items: center; gap: 0.5rem; font: 400 0.9375rem/1.5rem var(--font-sans, \"Commissioner\", ui-sans-serif, system-ui, sans-serif); color: var(--color-ink, light-dark(#0d2523, #e8efe9)); } .ds-state::before { content: ''; display: block; flex: none; width: 0.625rem; height: 0.625rem; border-radius: 9999px; border: 2px solid currentColor; } .ds-state-running::before { background: var(--color-bronze, light-dark(#c98232, #cd8a3e)); border-color: var(--color-bronze, light-dark(#c98232, #cd8a3e)); } .ds-state-stopped { color: var(--color-ink-muted, light-dark(#3f5d58, #a8c0b9)); } .ds-state-stopped::before { border-color: var(--color-patina, light-dark(#1f7468, #62b8a8)); } .ds-state-paused::before { border-color: var(--color-warning-text, light-dark(#7a5a00, #e6c15a)); background: linear-gradient(90deg, var(--color-warning-text, light-dark(#7a5a00, #e6c15a)) 50%, transparent 50%); } .ds-state-template { color: var(--color-ink-muted, light-dark(#3f5d58, #a8c0b9)); } .ds-state-template::before { border-radius: 0; border-color: var(--color-ink-faint, light-dark(#4f6963, #84a09a)); } .ds-state-down { color: var(--color-danger-text, light-dark(#a32b18, #f39480)); } .ds-state-down::before { border-color: var(--color-danger, light-dark(#b3351f, #c4452f)); background: linear-gradient(135deg, transparent 40%, var(--color-danger, light-dark(#b3351f, #c4452f)) 40% 60%, transparent 60%); } .ds-btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.375rem 0.875rem; font: 500 0.9375rem/1.5rem var(--font-sans, \"Commissioner\", ui-sans-serif, system-ui, sans-serif); color: var(--color-ink, light-dark(#0d2523, #e8efe9)); background: var(--color-sunken, light-dark(#d8e3de, #163536)); border: 1px solid var(--color-line-strong, light-dark(#6f8a83, #4a7d7a)); border-radius: var(--radius-control, 0.25rem); cursor: pointer; transition: color 150ms, background-color 150ms, border-color 150ms; } .ds-btn:hover { background: var(--color-line, light-dark(#bccbc5, #24494a)); } .ds-btn:focus-visible { outline: 2px solid var(--color-bronze-text, light-dark(#8a4d12, #e2a660)); outline-offset: 2px; } .ds-btn-primary { background: var(--color-bronze, light-dark(#c98232, #cd8a3e)); color: var(--color-on-bronze, #1b1004); border-color: transparent; } .ds-btn-primary:hover { background: var(--color-bronze-hover, light-dark(#b8721f, #dd9d54)); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Bronze at the Forge",
+    "overview": "Machines are Hephaistos's bronzes. One in use stays polished, one left idle grows a patina, and how hard it works is read as the heat the metal has run to. The whole system is that one reading: a deep verdigris bar across the top, a green-black or pale green-grey ground beneath it, polished bronze wherever something is running or waiting to be pressed, sea-green patina wherever something has been left alone.\n\nIt is an operating console, so it is dense and flat. Pages are a title, one line about the page, then full-width tables with 40px rows. Bordered panels hold a single form or a single group of settings and nothing else. There are no shadows, no cards used as layout, four type sizes and one corner radius. Greece is felt, not illustrated: the bronze and the verdigris, the island's name set small in Greek capitals beside the wordmark, and a text face drawn by a Greek designer.\n\nBoth modes are first-class. Every colour is one token holding a light value and a dark value, switched by the page's colour scheme, so nothing is styled twice. The bar and the heat scale are the same in both modes.",
+    "keyCharacteristics": [
+      "A verdigris bar on every page, identical in light and dark.",
+      "A tinted ground: green-black in dark, cool pale green-grey in light, never neutral grey or cream.",
+      "Bronze for what is in use, patina for what is idle, cinnabar for failure and nothing else.",
+      "Load drawn as a heat strip clipped from one fixed gradient, so rows compare by eye.",
+      "State shown as a mark and a word; the marks differ in shape as well as colour.",
+      "Flat surfaces, hairline rules, 4px corners, 40px rows, four type sizes."
+    ],
+    "rules": [
+      {
+        "name": "The Two Metals Rule",
+        "body": "Bronze means in use, patina means idle. A running machine, a switched-on setting and an online node take the bronze disc; a stopped machine and a switched-off setting take the patina ring. Never swap them and never add a third \"healthy\" colour.",
+        "section": "colors"
+      },
+      {
+        "name": "The Failure-Only Red Rule",
+        "body": "At rest, cinnabar appears only where something has failed: a failure notice, an unreachable mark, an inline error. Stop, Remove and Turn off look like any other button until pointed at or focused, so a red notice is never one of many red things on the page.",
+        "section": "colors"
+      },
+      {
+        "name": "The Heat Stays In The Strip Rule",
+        "body": "The five heat colours are never used for text, fills, marks or decoration. Straw for \"paused\" comes from the warning token, not from the scale.",
+        "section": "colors"
+      },
+      {
+        "name": "The Tinted Ground Rule",
+        "body": "Every neutral leans green. No neutral grey, no cream, no pure black ground.",
+        "section": "colors"
+      },
+      {
+        "name": "The Four Sizes Rule",
+        "body": "Title, lead, base, meta. The default type scale is removed from the build, so a size outside these four generates nothing. Hierarchy comes from weight and ink strength before it comes from size.",
+        "section": "typography"
+      },
+      {
+        "name": "The Digits Rule",
+        "body": "Mono is only for things compared digit by digit: IDs, addresses and figures. Names, labels and prose are never mono.",
+        "section": "typography"
+      },
+      {
+        "name": "The Wordmark Rule",
+        "body": "The bar reads \"Lemnos\" (700, 1.125rem, tracking -0.01em) followed by ΛΗΜΝΟΣ (500, 0.8125rem, tracking 0.16em, shell-muted), on one baseline. Wide tracking and Greek capitals belong to this lockup only; the Greek is decorative and hidden from assistive technology.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat Metal Rule",
+        "body": "No drop shadows, no glows, no blur, at rest or on hover. A thing is raised by being lighter than its ground and lowered by being darker; hover changes tone, never height.",
+        "section": "elevation"
+      },
+      {
+        "name": "The One Corner Rule",
+        "body": "Containers and controls share the 4px radius. No pills, no large rounded cards.",
+        "section": "shapes"
+      }
+    ],
+    "dos": [
+      "Do use the bronze fill for the single action that moves things forward, and the bronze disc for anything running, on or online.",
+      "Do show state as a mark plus a word, and give a new state its own shape, not just its own colour.",
+      "Do show load with the heat strip and put the exact figure beside it in mono.",
+      "Do make destructive buttons look ordinary at rest and turn cinnabar only on hover and focus.",
+      "Do define a colour once as a light and dark pair and let the colour scheme pick; the bar and heat scale stay the same in both modes.",
+      "Do keep to the four sizes, the 4px corner and the 40px row.",
+      "Do give every stacking table cell its column name, so the row still explains itself as a block below 75rem.",
+      "Do report a failure as a notice in plain words with the technical reason folded beneath it.",
+      "Do keep targets at least 40px tall where rows stack and where the theme switch sits in the footer."
+    ],
+    "donts": [
+      "Don't put cinnabar on anything at rest that has not failed.",
+      "Don't use the heat colours outside a load strip.",
+      "Don't colour table links bronze; in tables they are ink with an underline.",
+      "Don't add drop shadows, glows or blur.",
+      "Don't nest panels, or build a page out of panels where a table or plain text would do.",
+      "Don't use a neutral grey, cream or pure black ground.",
+      "Don't set names, labels or prose in mono, or add a fifth type size.",
+      "Don't animate anything except the heat strips drawing in once on load and 150ms colour changes on hover and focus.",
+      "Don't use a green dot for \"running\"; green here means idle.",
+      "Don't reuse the tracked Greek capitals of the wordmark as a label style elsewhere."
+    ]
+  }
+}

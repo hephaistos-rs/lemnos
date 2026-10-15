@@ -15,6 +15,7 @@ use topcoat::{
 };
 
 use crate::app::auth::{current_user, error_code, error_message, sign_in, state};
+use crate::components::notice;
 
 #[query_params(error = bad_request)]
 struct Query {
@@ -49,54 +50,73 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
     };
 
     Ok(view! {
-        <div class="max-w-xl mx-auto mt-12 flex flex-col gap-y-8">
-            <div>
-                <h2 class="text-2xl font-bold text-secondary-50">"Account"</h2>
-                <p class="text-secondary-300">"Signed in as " (user.username.as_str())</p>
-                if let Some(code) = &query.error {
-                    <p class="mt-2 text-sm text-danger-200">(error_message(code))</p>
-                }
+        <div class="page-mid">
+            <div class="page-head">
+                <div>
+                    <h1>"Account"</h1>
+                    <p>"Signed in as " (user.username.as_str())</p>
+                </div>
             </div>
 
-            <section class="p-6 rounded-lg bg-secondary-700 flex flex-col gap-y-4">
-                <h3 class="text-lg font-bold text-secondary-50">"Two-factor codes"</h3>
+            if let Some(code) = &query.error {
+                notice(tone: "danger", message: error_message(code))
+            }
+
+            <section class="panel">
+                <div class="flex items-center justify-between gap-x-4">
+                    <h2 class="section-title">"Two-factor codes"</h2>
+                    if totp_enabled {
+                        <span class="state state-running">"On"</span>
+                    } else {
+                        <span class="state state-stopped">"Off"</span>
+                    }
+                </div>
                 if totp_enabled {
-                    <p class="text-success-200">"On: signing in with your password also asks for a code."</p>
-                    <form method="post" action=(href!(totp_disable)) class="flex flex-col gap-y-2">
-                        <label for="password" class="label">"Password, to turn it off"</label>
-                        <div class="input-wrapper">
-                            <input type="password" id="password" name="password" autocomplete="current-password" required="">
+                    <p class="text-ink-muted max-w-[65ch]">
+                        "Signing in with your password also asks for a code."
+                    </p>
+                    <form method="post" action=(href!(totp_disable)) class="flex flex-col gap-y-4">
+                        <div class="field">
+                            <label for="password" class="label">"Password, to turn it off"</label>
+                            <input type="password" id="password" name="password" class="input" autocomplete="current-password" required="">
                         </div>
-                        <button type="submit" class="button">"Turn off"</button>
+                        <button type="submit" class="button button-danger self-start">"Turn off"</button>
                     </form>
                 } else {
-                    <p class="text-secondary-200">"Off. Turn it on to require a code from an authenticator app after your password."</p>
-                    <form method="post" action=(href!(totp_begin))>
-                        <button type="submit" class="button button-primary">"Set up"</button>
+                    <p class="text-ink-muted max-w-[65ch]">
+                        "Turn it on to require a code from an authenticator app after your password."
+                    </p>
+                    <form method="post" action=(href!(totp_begin)) class="flex flex-col">
+                        <button type="submit" class="button button-primary self-start">"Set up"</button>
                     </form>
                 }
             </section>
 
             if state.passkeys {
-                <section class="p-6 rounded-lg bg-secondary-700 flex flex-col gap-y-4">
-                    <h3 class="text-lg font-bold text-secondary-50">"Passkeys"</h3>
+                <section class="panel">
+                    <h2 class="section-title">"Passkeys"</h2>
                     if passkeys.is_empty() {
-                        <p class="text-secondary-200">"None yet. A passkey lets you sign in with your fingerprint, face or a security key instead of a password."</p>
-                    }
-                    for passkey in &passkeys {
-                        <form method="post" action=(href!(passkey_remove)) class="flex items-center justify-between gap-x-4">
-                            <span class="text-secondary-50">(passkey.label.as_str())</span>
-                            <input type="hidden" name="credential_id" value=(to_hex(&passkey.credential_id))>
-                            <button type="submit" class="button">"Remove"</button>
-                        </form>
-                    }
-                    <div class="flex flex-col gap-y-2">
-                        <label for="passkey-label" class="label">"Name for a new passkey"</label>
-                        <div class="input-wrapper">
-                            <input type="text" id="passkey-label" placeholder="e.g. Laptop">
+                        <p class="text-ink-muted max-w-[65ch]">
+                            "None yet. A passkey lets you sign in with your fingerprint, face or a security key instead of a password."
+                        </p>
+                    } else {
+                        <div class="flex flex-col">
+                            for passkey in &passkeys {
+                                <form method="post" action=(href!(passkey_remove)) class="flex items-center justify-between gap-x-4 py-2 border-b border-line">
+                                    <span class="font-medium break-all">(passkey.label.as_str())</span>
+                                    <input type="hidden" name="credential_id" value=(to_hex(&passkey.credential_id))>
+                                    <button type="submit" class="button button-sm button-danger">"Remove"</button>
+                                </form>
+                            }
                         </div>
-                        <button type="button" class="button button-primary" data-passkey-register="">"Add a passkey"</button>
-                        <p class="text-sm text-danger-200" data-passkey-error=""></p>
+                    }
+                    <div class="flex flex-col gap-y-4">
+                        <div class="field">
+                            <label for="passkey-label" class="label">"Name for a new passkey"</label>
+                            <input type="text" id="passkey-label" class="input" placeholder="e.g. Laptop">
+                            <p class="text-meta text-danger-text empty:hidden" data-passkey-error=""></p>
+                        </div>
+                        <button type="button" class="button button-primary self-start" data-passkey-register="">"Add a passkey"</button>
                     </div>
                     <script src="/auth/passkey/passkey.js" defer=""></script>
                 </section>
@@ -120,27 +140,37 @@ pub async fn totp_begin(cx: &Cx) -> Result<impl View> {
     let qr_code = crate::qr::data_url(&enrollment.otpauth_url);
 
     Ok(view! {
-        <div class="max-w-xl mx-auto mt-12 p-6 rounded-lg bg-secondary-700 flex flex-col gap-y-4">
-            <h2 class="text-2xl font-bold text-secondary-50">"Set up two-factor codes"</h2>
-            <p class="text-secondary-200">"Scan this code with an authenticator app on your phone, then enter the 6-digit code the app shows. Nothing changes until you do."</p>
-            if let Some(qr_code) = &qr_code {
-                <img src=(qr_code.as_str()) alt="QR code for your authenticator app" width="220" height="220" class="self-center rounded">
-            }
-            <div class="flex flex-col gap-y-1">
-                <p class="text-sm text-secondary-300">"Can't scan it? Type this key into the app instead:"</p>
-                <p class="font-mono text-lg break-all text-secondary-50">(enrollment.secret_base32.as_str())</p>
-            </div>
-            <div class="flex flex-col gap-y-1">
-                <p class="text-sm text-secondary-300">"Authenticator app on this same device?"</p>
-                <a href=(enrollment.otpauth_url.as_str()) class="button text-center">"Open it here"</a>
-            </div>
-            <form method="post" action=(href!(totp_confirm)) class="flex flex-col gap-y-2">
-                <label for="code" class="label">"Code from the app"</label>
-                <div class="input-wrapper">
-                    <input type="text" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" autofocus="" required="">
+        <div class="page-narrow">
+            <div class="flex flex-col gap-y-2">
+                <a href=(href!(page)) class="back-link self-start">"Account"</a>
+                <div class="page-head">
+                    <div>
+                        <h1>"Set up two-factor codes"</h1>
+                        <p>"Scan this code with an authenticator app on your phone, then enter the 6-digit code the app shows. Nothing changes until you do."</p>
+                    </div>
                 </div>
-                <button type="submit" class="button button-primary">"Turn on"</button>
-            </form>
+            </div>
+
+            <section class="panel">
+                if let Some(qr_code) = &qr_code {
+                    <img src=(qr_code.as_str()) alt="QR code for your authenticator app" width="220" height="220" class="self-center">
+                }
+                <div class="flex flex-col gap-y-1">
+                    <p class="text-meta text-ink-muted">"Can't scan it? Type this key into the app instead:"</p>
+                    <p class="figure text-base break-all">(enrollment.secret_base32.as_str())</p>
+                </div>
+                <div class="flex flex-col gap-y-1.5">
+                    <p class="text-meta text-ink-muted">"Authenticator app on this same device?"</p>
+                    <a href=(enrollment.otpauth_url.as_str()) class="button self-start">"Open it here"</a>
+                </div>
+                <form method="post" action=(href!(totp_confirm)) class="flex flex-col gap-y-4 pt-4 border-t border-line">
+                    <div class="field">
+                        <label for="code" class="label">"Code from the app"</label>
+                        <input type="text" id="code" name="code" class="input" inputmode="numeric" autocomplete="one-time-code" autofocus="" required="">
+                    </div>
+                    <button type="submit" class="button button-primary w-full">"Turn on"</button>
+                </form>
+            </section>
         </div>
     })
 }

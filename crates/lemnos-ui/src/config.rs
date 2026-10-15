@@ -1,4 +1,5 @@
-// Which sign-in methods this Lemnos offers. Read once at startup from the
+// Which sign-in methods this Lemnos offers, and which Proxmox VE
+// environments it manages. Read once at startup from the
 // TOML file named by the `LEMNOS_CONFIG` environment variable, or else from
 // `lemnos.toml` in the directory Lemnos is started from. With neither, only
 // local accounts work. See `lemnos.dev.toml` for an example.
@@ -25,6 +26,35 @@ pub struct Config {
     pub sso: Vec<ProviderConfig>,
     pub ldap: Option<LdapConfig>,
     pub passkeys: Option<PasskeyConfig>,
+    /// Proxmox VE environments to manage, one `[[proxmox]]` table each.
+    pub proxmox: Vec<ProxmoxConfig>,
+}
+
+/// One Proxmox VE environment. Set either the two `token_*` keys or
+/// `password`, not both.
+///
+/// Environments listed here are written to the database at every start, so
+/// the file wins over changes made to them on the Proxmox page. Ones added
+/// on that page are kept in the database only and are left alone.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProxmoxConfig {
+    /// What Lemnos calls it. No two environments share a name.
+    pub name: String,
+    /// Scheme, host and port, e.g. `https://pve.example.com:8006`.
+    pub url: String,
+    /// User name without the realm, e.g. `root`.
+    pub user: String,
+    /// Realm the user belongs to, e.g. `pam` or `pve`.
+    pub realm: String,
+    /// The API token's name, the part after `!` in `root@pam!lemnos`.
+    pub token_id: Option<String>,
+    pub token_secret: Option<Secret>,
+    pub password: Option<Secret>,
+    /// Accept a certificate that does not verify, such as the self-signed
+    /// one Proxmox installs by default.
+    #[serde(default)]
+    pub accept_invalid_certs: bool,
 }
 
 impl Default for Config {
@@ -38,6 +68,7 @@ impl Default for Config {
             sso: Vec::new(),
             ldap: None,
             passkeys: None,
+            proxmox: Vec::new(),
         }
     }
 }

@@ -70,3 +70,18 @@ entity_id = "http://localhost:3000/auth/sso/saml"
 acs_url = "http://localhost:3000/auth/sso/saml/acs"
 idp_metadata = { url = "http://localhost:8088/simplesaml/saml2/idp/metadata.php" }
 tracker_key = "bGVtbm9zLWRldi10cmFja2VyLWtleS0zMi1ieXRlcyE="
+
+# A Proxmox VE environment to manage. There is none in compose.dev.yml, so
+# this is only an example: uncomment it and point it at a real one. Sign in
+# with an API token (as here), or with `password = "..."` instead of the two
+# `token_*` keys. Environments can also be added on the Proxmox page.
+#
+# [[proxmox]]
+# name = "Lab"
+# url = "https://pve.example.com:8006"
+# user = "root"
+# realm = "pam"
+# token_id = "lemnos"
+# token_secret = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+# # Proxmox installs a self-signed certificate by default.
+# accept_invalid_certs = true

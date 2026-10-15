@@ -16,6 +16,7 @@ use topcoat::{
 };
 
 use super::{error_code, error_message, peek, sign_in, start_session, state, take};
+use crate::components::notice;
 
 /// Cookie holding the proof that the password step was passed.
 pub const CHALLENGE: &str = "second-factor";
@@ -29,20 +30,27 @@ struct Query {
 pub async fn page(cx: &Cx) -> Result<impl View> {
     let query = query_params::<Query>(cx)?;
     Ok(view! {
-        <div class="max-w-md mx-auto mt-12 p-8 rounded-lg bg-secondary-700">
-            <h2 class="text-2xl font-bold mb-6 text-center text-secondary-50">"Two-factor code"</h2>
+        <div class="page-narrow">
+            <div class="flex flex-col gap-y-1">
+                <h1 class="text-title font-semibold">"Two-factor code"</h1>
+                <p class="text-ink-muted">"Your password was right. One more step to sign in."</p>
+            </div>
+
             if let Some(code) = &query.error {
-                <p class="mb-4 text-sm text-danger-200">(error_message(code))</p>
+                notice(tone: "danger", message: error_message(code))
             }
-            <form method="post" class="flex flex-col gap-y-4">
-                <div class="flex flex-col gap-y-1">
+
+            <form method="post" class="panel">
+                <div class="field">
                     <label for="code" class="label">"Code from your authenticator app"</label>
-                    <div class="input-wrapper">
-                        <input type="text" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" autofocus="" required="">
-                    </div>
+                    <input type="text" id="code" name="code" class="input" inputmode="numeric" autocomplete="one-time-code" autofocus="" required="">
                 </div>
-                <button type="submit" class="button button-primary w-full mt-2">"Verify"</button>
+                <button type="submit" class="button button-primary w-full">"Verify"</button>
             </form>
+
+            <p class="text-ink-muted">
+                <a href=(href!(sign_in::page)) class="link">"Back to sign in"</a>
+            </p>
         </div>
     })
 }
