@@ -15,7 +15,7 @@ use proxmox_api::nodes::NodesClient;
 use proxmox_api::nodes::node::{lxc, qemu};
 
 use super::{CloneOptions, Guest, GuestId, GuestKind, VmId, clone, list};
-use crate::client::Client;
+use crate::client::{Client, no_data};
 use crate::tasks;
 
 /// Every template in the cluster, ordered by ID.
@@ -108,14 +108,14 @@ pub async fn set_tags(
                 tags: joined,
                 ..Default::default()
             };
-            node.qemu().vmid(guest.vmid).config().put(params).await
+            no_data(node.qemu().vmid(guest.vmid).config().put(params)).await
         }
         GuestKind::Lxc => {
             let params = lxc::vmid::config::PutParams {
                 tags: joined,
                 ..Default::default()
             };
-            node.lxc().vmid(guest.vmid).config().put(params).await
+            no_data(node.lxc().vmid(guest.vmid).config().put(params)).await
         }
     }
 }

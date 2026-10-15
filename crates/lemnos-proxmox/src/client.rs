@@ -24,7 +24,9 @@
 use std::fmt;
 use std::time::Duration;
 
+use proxmox_api::ReqwestError;
 use proxmox_api::version::VersionClient;
+use reqwest::StatusCode;
 use tokio::time::Instant;
 
 /// An authenticated Proxmox VE API client.
@@ -117,6 +119,26 @@ pub async fn connect(endpoint: &Endpoint, credentials: &Credentials) -> Result<C
     Ok(client)
 }
 
+/// Runs a call whose generated return type is `()`, such as setting a
+/// guest's config.
+///
+/// Proxmox answers those with `{"data":null}`. `proxmox_api` reads the `null`
+/// as "no data" and, with no `errors` either, reports a call that worked as
+/// `UnknownFailure(200 OK, ..)`. This turns exactly that case back into
+/// success. A real failure comes with another status, so it still errors.
+pub(crate) async fn no_data(
+    call: impl Future<Output = Result<(), ReqwestError>>,
+) -> Result<(), ReqwestError> {
+    accept_null(call.await)
+}
+
+fn accept_null(result: Result<(), ReqwestError>) -> Result<(), ReqwestError> {
+    match result {
+        Err(ReqwestError::UnknownFailure(StatusCode::OK, _)) => Ok(()),
+        other => other,
+    }
+}
+
 /// How long a ticket stays valid after it was issued.
 const TICKET_LIFETIME: Duration = Duration::from_secs(2 * 60 * 60);
 /// How often [`keep_alive`] looks at the ticket. The client itself only
@@ -153,5 +175,46 @@ pub async fn keep_alive(client: &Client) -> Error {
             Err(error) if renewed.elapsed() >= TICKET_LIFETIME => return error.into(),
             Err(_) => {}
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_null_answer_with_200_is_success() {
+        let null = Err(ReqwestError::UnknownFailure(
+            StatusCode::OK,
+            Some(r#"{"data":null}"#.into()),
+        ));
+        assert!(accept_null(null).is_ok());
+        assert!(accept_null(Ok(())).is_ok());
+    }
+
+    #[test]
+    fn other_failures_still_fail() {
+        let server = Err(ReqwestError::UnknownFailure(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Some("VM 100 is locked (clone)".into()),
+        ));
+        assert!(matches!(
+            accept_null(server),
+            Err(ReqwestError::UnknownFailure(status, _)) if status == StatusCode::INTERNAL_SERVER_ERROR
+        ));
+
+        let errors = Err(ReqwestError::EncounteredErrors(
+            serde_json::json!({"tags": "invalid"}),
+        ));
+        assert!(matches!(
+            accept_null(errors),
+            Err(ReqwestError::EncounteredErrors(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn no_data_awaits_the_call() {
+        let call = async { Err(ReqwestError::UnknownFailure(StatusCode::OK, None)) };
+        assert!(no_data(call).await.is_ok());
     }
 }
