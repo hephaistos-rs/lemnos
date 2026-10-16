@@ -156,7 +156,7 @@ pub async fn leftovers_to_check(
         <section class="flex flex-col gap-y-3">
             <h2 class="section-title">"Left behind by failed creations"</h2>
             <p class="text-ink-muted max-w-[65ch]">
-                "Creating these machines failed, so they count against nobody, but Proxmox has a machine for them. Where it carries the creation's marker, it is certainly that machine and can be deleted here. Otherwise it only has the ID the copy was going to; check it in Proxmox before deleting it there."
+                "Creating these machines failed, so they count against nobody, but Proxmox has a machine for them. Where it carries the creation's marker, it is certainly that machine and can be deleted here. Otherwise it only has the ID the copy was going to; check it in Proxmox before deleting it there. Removing the entry leaves the machine in Proxmox; Lemnos just stops listing it here."
             </p>
             <div class="data data-stack">
                 <table>
@@ -195,7 +195,7 @@ pub async fn leftovers_to_check(
                                         }
                                         <form method="post" action=(href!(release, Environment(environment)))>
                                             <input type="hidden" name="vmid" value=(entry.record.machine.as_str())>
-                                            <button type="submit" class="button button-sm">"Remove the entry"</button>
+                                            <button type="submit" class="button button-sm">"Remove the entry, keep the machine"</button>
                                         </form>
                                     </div>
                                 </td>
@@ -241,7 +241,7 @@ pub async fn records_to_check(
         <section class="flex flex-col gap-y-3">
             <h2 class="section-title">"Records to check"</h2>
             <p class="text-ink-muted max-w-[65ch]">
-                "Lemnos can't tell whether these records still belong to the machine with their ID, so nobody sees them as theirs. Confirm a record to tag that machine and give it back to its owner, or release it to forget it. Neither changes the machine itself, apart from the tag."
+                "Lemnos can't tell whether these records still belong to the machine with their ID, so nobody sees them as theirs. Confirm a record if it is that machine: Lemnos tags it and gives it back to its owner. Release a record if it isn't: the machine stays in Proxmox exactly as it is, and Lemnos stops tracking it, so it no longer counts against anyone and can't be deleted from Lemnos. Delete it in Proxmox if it should go."
             </p>
             <div class="data data-stack">
                 <table>
@@ -275,7 +275,7 @@ pub async fn records_to_check(
                                         </form>
                                         <form method="post" action=(href!(release, Environment(environment)))>
                                             <input type="hidden" name="vmid" value=(entry.record.machine.as_str())>
-                                            <button type="submit" class="button button-sm button-danger">"Release"</button>
+                                            <button type="submit" class="button button-sm">"Release, keep the machine"</button>
                                         </form>
                                     </div>
                                 </td>
