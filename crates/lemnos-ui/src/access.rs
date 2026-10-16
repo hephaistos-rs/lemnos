@@ -275,6 +275,22 @@ impl Access {
         }
     }
 
+    /// Whether the user may look at a machine record of `owner`'s, such as
+    /// one still being created: in whatever scope they are looking at.
+    pub fn can_see_record_of(&self, owner: Owner) -> bool {
+        if self.admin {
+            return true;
+        }
+        match owner {
+            Owner::Person(user) => user == self.user.id,
+            Owner::Organization(organization) => self.role_in(organization).is_some(),
+            Owner::Project {
+                organization,
+                project,
+            } => self.role_in(organization) == Some(Role::Owner) || self.in_project(project),
+        }
+    }
+
     /// Whether the user may create machines for the owner, leaving aside
     /// how many there already are.
     pub fn may_create_for(&self, owner: Owner) -> bool {

@@ -44,6 +44,8 @@ impl AuthState {
         database.delete_expired_sessions(SystemTime::now()).await?;
         let managed_environments =
             crate::app::console::environments::sync_config(&database, config.proxmox).await?;
+        // Machines that were being created when Lemnos last stopped.
+        crate::creation::reconcile_all(database.clone());
         let mut auth = Auth::new(database, Default::default());
         let ldap = config.ldap.is_some();
         if let Some(ldap) = config.ldap {

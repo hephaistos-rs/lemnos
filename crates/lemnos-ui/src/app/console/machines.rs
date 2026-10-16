@@ -30,6 +30,7 @@ use crate::{
 
 pub mod new;
 pub mod remove;
+pub mod status;
 
 #[query_params(error = bad_request)]
 struct Query {

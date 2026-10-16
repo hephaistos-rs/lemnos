@@ -24,13 +24,15 @@
 use std::fmt;
 use std::time::Duration;
 
-use proxmox_api::ReqwestError;
 use proxmox_api::version::VersionClient;
-use reqwest::StatusCode;
 use tokio::time::Instant;
 
 /// An authenticated Proxmox VE API client.
 pub use proxmox_api::ReqwestClient as Client;
+/// The error every call can return.
+pub use proxmox_api::ReqwestError;
+/// The HTTP status inside a [`ReqwestError::UnknownFailure`].
+pub use reqwest::StatusCode;
 
 /// Where to find a Proxmox VE node or cluster, and which user to log in as.
 #[derive(Debug, Clone)]

@@ -710,6 +710,26 @@ impl Database {
         .transpose()
     }
 
+    /// The record carrying `marker`, whatever key it goes by now: a pending
+    /// record is renamed to its VM ID once active.
+    pub async fn machine_by_marker(
+        &self,
+        environment: ProxmoxEnvironmentId,
+        marker: &str,
+    ) -> Result<Option<MachineRecord>> {
+        self.query(&format!(
+            "SELECT {MACHINE_COLUMNS} FROM machines WHERE environment_id = ? AND marker = ?"
+        ))
+        .bind(id(environment.0))
+        .bind(marker.to_owned())
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(store_error)?
+        .as_ref()
+        .map(record_from)
+        .transpose()
+    }
+
     /// Every machine still being created, in every environment.
     pub async fn pending_machines(&self) -> Result<Vec<MachineRecord>> {
         self.query(&format!(

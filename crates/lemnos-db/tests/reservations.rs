@@ -230,6 +230,15 @@ async fn transitions(database: &Database) {
     assert_eq!(stored.status, MachineStatus::Active);
     assert_eq!(stored.name, wanted.name);
     assert_eq!(stored.marker.as_deref(), Some(wanted.marker.as_str()));
+    // Found by its marker under its new key.
+    assert_eq!(
+        database
+            .machine_by_marker(lab, &wanted.marker)
+            .await
+            .unwrap()
+            .map(|record| record.machine),
+        Some("106".to_owned())
+    );
     // Done once only.
     assert_eq!(
         database

@@ -34,6 +34,25 @@ impl Task {
             upid: upid.into(),
         }
     }
+
+    /// The task a stored UPID names. A UPID starts with `UPID:` and the
+    /// node, e.g. `UPID:pve:0000A1B2:0012C3D4:6720F00D:qmclone:8200:root@pam:`.
+    pub fn from_upid(upid: &str) -> Option<Self> {
+        let node = upid.strip_prefix("UPID:")?.split(':').next()?;
+        (!node.is_empty()).then(|| Self::new(node, upid))
+    }
+}
+
+/// Where a task is, read once: see [`status`].
+#[derive(Debug)]
+pub enum Progress {
+    Running,
+    /// Done, and how it went. `started` is when it began, in seconds since
+    /// the Unix epoch, by the node's clock.
+    Finished {
+        outcome: Result<(), Error>,
+        started: i64,
+    },
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -66,6 +85,26 @@ pub async fn wait(client: &Client, task: &Task, timeout: Duration) -> Result<(),
         }
         tokio::time::sleep(POLL_INTERVAL).await;
     }
+}
+
+/// Looks at the task once, without waiting. For picking up a task that
+/// was started earlier, perhaps before Lemnos restarted.
+pub async fn status(client: &Client, task: &Task) -> Result<Progress, ReqwestError> {
+    let current = NodesClient::new(client)
+        .node(&task.node)
+        .tasks()
+        .upid(&task.upid)
+        .status()
+        .get()
+        .await?;
+    Ok(if current.status == Status::Stopped {
+        Progress::Finished {
+            outcome: outcome(current.exitstatus),
+            started: current.starttime,
+        }
+    } else {
+        Progress::Running
+    })
 }
 
 /// Asks Proxmox to abort a running task. What it had already done is not
@@ -105,6 +144,14 @@ fn outcome(exitstatus: Option<String>) -> Result<(), Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_upid_names_its_node() {
+        let upid = "UPID:git:0000A1B2:0012C3D4:6720F00D:qmclone:8200:root@pam!lemnos:";
+        assert_eq!(Task::from_upid(upid), Some(Task::new("git", upid)));
+        assert_eq!(Task::from_upid("UPID::x"), None);
+        assert_eq!(Task::from_upid("nonsense"), None);
+    }
 
     #[test]
     fn ok_and_warnings_count_as_success() {
