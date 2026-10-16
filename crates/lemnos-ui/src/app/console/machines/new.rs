@@ -598,14 +598,14 @@ pub async fn create(cx: &Cx, Form(input): Form<NewMachineForm>) -> Result<SeeOth
         Err(error) => return Ok(back(cx, owner, "failed", Some(&error.to_string()))),
     };
     database
-        .record_machine(&MachineRecord {
-            environment: destination.environment.id,
-            machine: created.guest.vmid.to_string(),
-            name: name.clone(),
+        .record_machine(&MachineRecord::active(
+            destination.environment.id,
+            created.guest.vmid.to_string(),
+            name.clone(),
             owner,
-            created_by: Some(access.user.id),
-            marker: Some(marker),
-        })
+            Some(access.user.id),
+            Some(marker),
+        ))
         .await?;
 
     // Show the new machine among the ones it belongs with.

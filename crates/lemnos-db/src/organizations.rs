@@ -101,6 +101,12 @@ pub enum OrganizationStoreError {
     UnknownRole,
     #[error("the database holds a machine without an owner")]
     UnknownOwner,
+    #[error("the database holds a machine in an unknown state")]
+    UnknownStatus,
+    /// [`Database::reserve_machine`](crate::Database::reserve_machine)
+    /// found no room left.
+    #[error("there is no room for another machine")]
+    QuotaReached,
     #[error("the database failed")]
     Backend(#[source] sqlx::Error),
 }

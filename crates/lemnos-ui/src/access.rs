@@ -547,14 +547,14 @@ mod tests {
     }
 
     fn record(vmid: &str, marker: Option<&str>) -> MachineRecord {
-        MachineRecord {
-            environment: ProxmoxEnvironmentId(1),
-            machine: vmid.into(),
-            name: "scratch".into(),
-            owner: Owner::Person(UserId(7)),
-            created_by: Some(UserId(7)),
-            marker: marker.map(str::to_owned),
-        }
+        MachineRecord::active(
+            ProxmoxEnvironmentId(1),
+            vmid,
+            "scratch",
+            Owner::Person(UserId(7)),
+            Some(UserId(7)),
+            marker.map(str::to_owned),
+        )
     }
 
     #[test]

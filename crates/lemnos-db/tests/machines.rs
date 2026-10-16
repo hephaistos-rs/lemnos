@@ -36,6 +36,21 @@ fn environment(name: &str) -> NewProxmoxEnvironment {
     }
 }
 
+/// The records with their timestamps cleared, to compare with what went in.
+fn untimed(records: Vec<MachineRecord>) -> Vec<MachineRecord> {
+    records
+        .into_iter()
+        .map(|record| {
+            assert!(record.created_at > 0 && record.updated_at >= record.created_at);
+            MachineRecord {
+                created_at: 0,
+                updated_at: 0,
+                ..record
+            }
+        })
+        .collect()
+}
+
 async fn exercise(database: &Database) {
     let alice = database
         .create_user(NewUser::new(Username::parse(&unique("alice")).unwrap()))
@@ -84,34 +99,34 @@ async fn exercise(database: &Database) {
     assert_eq!(database.machine_quota(forge.id).await.unwrap(), 3);
 
     // --- machines ---
-    let personal = MachineRecord {
-        environment: lab.id,
-        machine: "100".into(),
-        name: "scratch".into(),
-        owner: Owner::Person(alice.id),
-        created_by: Some(alice.id),
-        marker: Some(lemnos_core::marker::generate()),
-    };
-    let shared = MachineRecord {
-        environment: lab.id,
-        machine: "101".into(),
-        name: "build".into(),
-        owner: Owner::Project {
+    let personal = MachineRecord::active(
+        lab.id,
+        "100",
+        "scratch",
+        Owner::Person(alice.id),
+        Some(alice.id),
+        Some(lemnos_core::marker::generate()),
+    );
+    let shared = MachineRecord::active(
+        lab.id,
+        "101",
+        "build",
+        Owner::Project {
             organization: forge.id,
             project: bellows.id,
         },
-        created_by: Some(alice.id),
+        Some(alice.id),
         // As records from before markers have it.
-        marker: None,
-    };
+        None,
+    );
     database.record_machine(&personal).await.unwrap();
     database.record_machine(&shared).await.unwrap();
     assert_eq!(
-        database.personal_machines(alice.id).await.unwrap(),
+        untimed(database.personal_machines(alice.id).await.unwrap()),
         std::slice::from_ref(&personal)
     );
     assert_eq!(
-        database.organization_machines(forge.id).await.unwrap(),
+        untimed(database.organization_machines(forge.id).await.unwrap()),
         std::slice::from_ref(&shared)
     );
     assert_eq!(
