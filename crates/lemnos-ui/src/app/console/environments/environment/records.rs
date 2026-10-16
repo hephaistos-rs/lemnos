@@ -4,13 +4,20 @@
 //                                                      tag it with a fresh marker
 //   POST /environments/{environment}/records/release   forget the record
 //
+//   POST /environments/{environment}/records/delete    delete what a failed
+//                                                      creation left behind
+//
 // A record applies to a guest only while the guest carries the record's
-// marker (see `access::applies_to`). Those that don't are listed here:
-// records from before markers ("Unverified"), and records whose guest lost
-// its marker in Proxmox ("Marker missing"). Until an admin confirms or
-// releases one, it gives nobody anything.
+// marker (see `access::applies_to`). Active records that don't are listed
+// here: records from before markers ("Unverified"), and records whose guest
+// lost its marker in Proxmox ("Marker missing"). Until an admin confirms or
+// releases one, it gives nobody anything. Pending records are never listed:
+// their copy simply isn't tagged yet.
+//
+// Failed creations that left a guest behind are listed too, so it can be
+// deleted on purpose rather than lingering.
 
-use lemnos_db::MachineRecord;
+use lemnos_db::{MachineRecord, MachineStatus};
 use lemnos_proxmox::guests::{self, Guest, provision};
 use serde::{Deserialize, Serialize};
 use topcoat::{
@@ -66,7 +73,12 @@ impl Standing {
 /// it applies to one (all is well) or its guest is gone (it is forgotten the
 /// next time quotas are counted).
 pub fn standing(record: &MachineRecord, guests: &[Guest]) -> Option<Standing> {
-    if guests.iter().any(|guest| applies_to(record, guest)) {
+    // A pending machine has no tags until its copy is done, and a failed
+    // one never existed as far as its owner goes: only an active record can
+    // be missing its marker.
+    if record.status != MachineStatus::Active
+        || guests.iter().any(|guest| applies_to(record, guest))
+    {
         return None;
     }
     guests
@@ -85,6 +97,115 @@ pub struct ToCheck {
     pub record: MachineRecord,
     pub standing: Standing,
     pub guest: Guest,
+}
+
+/// A failed creation, and the guest it may have left behind.
+pub struct Leftover {
+    pub record: MachineRecord,
+    pub guest: Guest,
+    /// The guest carries the record's marker: it is certainly what the
+    /// creation made. Otherwise it only has the ID the copy was going to.
+    pub certain: bool,
+}
+
+/// What a failed record left behind among `guests`, if anything.
+pub fn leftover_of<'a>(record: &MachineRecord, guests: &'a [Guest]) -> Option<(&'a Guest, bool)> {
+    if record.status != MachineStatus::Failed {
+        return None;
+    }
+    let marked = record
+        .marker
+        .as_ref()
+        .and_then(|marker| guests.iter().find(|guest| guest.tags.contains(marker)));
+    if let Some(guest) = marked {
+        return Some((guest, true));
+    }
+    let vmid = record.vmid.as_deref()?;
+    guests
+        .iter()
+        .find(|guest| guest.id.vmid.to_string() == vmid)
+        .map(|guest| (guest, false))
+}
+
+/// The environment's failed creations that left something behind.
+pub async fn leftovers(cx: &Cx, environment: u64, guests: &[Guest]) -> Result<Vec<Leftover>> {
+    let records = database(cx)
+        .environment_machines(lemnos_db::ProxmoxEnvironmentId(environment))
+        .await?;
+    Ok(records
+        .into_iter()
+        .filter_map(|record| {
+            let (guest, certain) = leftover_of(&record, guests)?;
+            Some(Leftover {
+                guest: guest.clone(),
+                certain,
+                record,
+            })
+        })
+        .collect())
+}
+
+#[component]
+pub async fn leftovers_to_check(
+    environment: u64,
+    entries: &[Leftover],
+    access: &Access,
+    owners: &Owners,
+) -> Result<impl View> {
+    Ok(view! {
+        <section class="flex flex-col gap-y-3">
+            <h2 class="section-title">"Left behind by failed creations"</h2>
+            <p class="text-ink-muted max-w-[65ch]">
+                "Creating these machines failed, so they count against nobody, but Proxmox has a machine for them. Where it carries the creation's marker, it is certainly that machine and can be deleted here. Otherwise it only has the ID the copy was going to; check it in Proxmox before deleting it there."
+            </p>
+            <div class="data data-stack">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>"ID"</th>
+                            <th>"Was to be"</th>
+                            <th>"Now called"</th>
+                            <th>"Owner"</th>
+                            <th>"Why it failed"</th>
+                            <th><span class="sr-only">"Actions"</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        for entry in entries {
+                            <tr>
+                                <td data-label="ID" class="figure meta">(entry.guest.id.vmid.to_string())</td>
+                                <td data-label="Was to be" class="name">(entry.record.name.as_str())</td>
+                                <td data-label="Now called">(entry.guest.name.as_deref().unwrap_or("-"))</td>
+                                <td data-label="Owner">(owners.label(access, Some(&entry.record)))</td>
+                                <td data-label="Why it failed">
+                                    (entry.record.failure.as_deref().unwrap_or("-"))
+                                    if let Some(detail) = &entry.record.failure_detail {
+                                        <p class="hint figure">(detail.as_str())</p>
+                                    }
+                                </td>
+                                <td class="wide">
+                                    <div class="actions">
+                                        if entry.certain {
+                                            <form method="post" action=(href!(delete, Environment(environment)))>
+                                                <input type="hidden" name="record" value=(entry.record.machine.as_str())>
+                                                <button type="submit" class="button button-sm button-danger">"Delete the machine"</button>
+                                            </form>
+                                        } else {
+                                            <span class="text-meta text-ink-faint">"Not certainly it"</span>
+                                        }
+                                        <form method="post" action=(href!(release, Environment(environment)))>
+                                            <input type="hidden" name="vmid" value=(entry.record.machine.as_str())>
+                                            <button type="submit" class="button button-sm">"Remove the entry"</button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    })
 }
 
 /// The environment's records that need an admin, given its guests.
@@ -177,7 +298,13 @@ pub struct ConfirmForm {
 
 #[derive(Deserialize)]
 pub struct ReleaseForm {
+    // The key the record goes by; for an active one, its VM ID.
     vmid: String,
+}
+
+#[derive(Deserialize)]
+pub struct DeleteForm {
+    record: String,
 }
 
 #[derive(Serialize)]
@@ -278,6 +405,67 @@ pub async fn release(cx: &Cx, Form(input): Form<ReleaseForm>) -> Result<SeeOther
     ))
 }
 
+/// How long deleting a leftover waits for Proxmox before showing the page.
+const DELETE_WAIT: std::time::Duration = std::time::Duration::from_secs(30);
+
+// Deletes the guest a failed creation left behind, disks and all. Only one
+// that carries the record's marker: anything less isn't certainly it.
+#[route(POST "./records/delete")]
+pub async fn delete(cx: &Cx, Form(input): Form<DeleteForm>) -> Result<SeeOther> {
+    admin_access(cx).await?;
+    let environment = stored(cx).await?;
+    let id = environment.id.0;
+    let failed = |reason: &str| {
+        back(
+            cx,
+            id,
+            Outcome {
+                notice: None,
+                error: Some(reason),
+            },
+        )
+    };
+    let Some(record) = database(cx)
+        .machine_record(environment.id, &input.record)
+        .await?
+    else {
+        return Ok(failed("that entry is gone already"));
+    };
+    let client = match connect(&environment).await {
+        Ok(client) => client,
+        Err(error) => return Ok(failed(&error.to_string())),
+    };
+    let guests = match guests::list(&client).await {
+        Ok(guests) => guests,
+        Err(error) => return Ok(failed(&error.to_string())),
+    };
+    let Some((guest, true)) = leftover_of(&record, &guests) else {
+        return Ok(failed(
+            "no machine carries this creation's marker, so Lemnos won't delete one for it",
+        ));
+    };
+    let outcome = async {
+        let task = guests::destroy(&client, &guest.id, true)
+            .await
+            .map_err(|error| error.to_string())?;
+        match lemnos_proxmox::tasks::wait(&client, &task, DELETE_WAIT).await {
+            Ok(()) | Err(lemnos_proxmox::tasks::Error::TimedOut(_)) => Ok(()),
+            Err(error) => Err(error.to_string()),
+        }
+    };
+    if let Err(reason) = outcome.await {
+        return Ok(failed(&reason));
+    }
+    Ok(back(
+        cx,
+        id,
+        Outcome {
+            notice: Some("left-deleted"),
+            error: None,
+        },
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use lemnos_auth::UserId;
@@ -336,6 +524,45 @@ mod tests {
             standing(&record(Some(MARKER)), &[guest(100, &["team-b"])]),
             Some(Standing::MarkerMissing)
         );
+    }
+
+    #[test]
+    fn a_pending_or_failed_record_is_never_marker_missing() {
+        // A copy still running: its guest has the template's tags only.
+        for status in [MachineStatus::Pending, MachineStatus::Failed] {
+            let record = MachineRecord {
+                status,
+                ..record(Some(MARKER))
+            };
+            assert_eq!(standing(&record, &[guest(100, &["template"])]), None);
+        }
+    }
+
+    #[test]
+    fn what_a_failed_creation_left_is_found_by_marker_first() {
+        let failed = MachineRecord {
+            status: MachineStatus::Failed,
+            vmid: Some("105".into()),
+            ..record(Some(MARKER))
+        };
+        // Carrying the marker: certainly it, wherever it is.
+        let marked = [guest(107, &[MARKER]), guest(105, &[])];
+        let (found, certain) = leftover_of(&failed, &marked).unwrap();
+        assert_eq!((found.id.vmid.to_string().as_str(), certain), ("107", true));
+        // Only the ID: maybe.
+        let only_the_id = [guest(105, &["template"])];
+        let (found, certain) = leftover_of(&failed, &only_the_id).unwrap();
+        assert_eq!(
+            (found.id.vmid.to_string().as_str(), certain),
+            ("105", false)
+        );
+        assert!(leftover_of(&failed, &[guest(110, &[])]).is_none());
+        // Only failed creations leave anything behind.
+        let pending = MachineRecord {
+            status: MachineStatus::Pending,
+            ..failed.clone()
+        };
+        assert!(leftover_of(&pending, &marked).is_none());
     }
 
     #[test]

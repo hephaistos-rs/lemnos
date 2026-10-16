@@ -299,13 +299,17 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
         "released" => {
             "Record released. Lemnos no longer counts that machine as anyone's.".to_owned()
         }
+        "left-deleted" => "The machine the failed creation left behind was deleted.".to_owned(),
         code => power_notice(code, query.action.as_deref(), query.machine.as_deref()),
     });
     let power_failed = power_problem(query.machine.as_deref());
     let edit = href!(edit::page, Environment(id)).resolve(cx);
-    let to_check = match &overview {
-        Some(overview) => records::to_check(cx, id, &overview.guests).await?,
-        None => Vec::new(),
+    let (to_check, leftovers) = match &overview {
+        Some(overview) => (
+            records::to_check(cx, id, &overview.guests).await?,
+            records::leftovers(cx, id, &overview.guests).await?,
+        ),
+        None => (Vec::new(), Vec::new()),
     };
     let owners = Owners::load(database(cx), &access).await?;
 
@@ -408,6 +412,14 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
                     records::records_to_check(
                         environment: id,
                         entries: &to_check,
+                        access: &access,
+                        owners: &owners,
+                    )
+                }
+                if !leftovers.is_empty() {
+                    records::leftovers_to_check(
+                        environment: id,
+                        entries: &leftovers,
                         access: &access,
                         owners: &owners,
                     )

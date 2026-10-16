@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 
 use lemnos_auth::UserId;
-use lemnos_db::{Database, MachineRecord, OrganizationId, Owner, ProjectId};
+use lemnos_db::{Database, MachineRecord, MachineStatus, OrganizationId, Owner, ProjectId};
 use lemnos_proxmox::guests::{Guest, GuestStatus};
 use topcoat::{
     Result,
@@ -18,7 +18,7 @@ use super::{
         self,
         environment::{
             self, Environment, fraction, is_running, kind_label, percent, power_buttons,
-            power_notice, power_problem, row_class, state_label, usage,
+            power_notice, power_problem, records, row_class, state_label, usage,
         },
     },
     organizations, welcome,
@@ -56,6 +56,9 @@ struct Unreachable {
 struct Loaded {
     visible: Visible,
     guests: std::result::Result<Vec<Guest>, String>,
+    /// The user's records here that apply to no guest, though one has their
+    /// ID: an admin has to confirm or release them (see `records`).
+    needs_admin: usize,
 }
 
 async fn load(visible: Visible) -> Loaded {
@@ -65,6 +68,13 @@ async fn load(visible: Visible) -> Loaded {
             .map(|overview| overview.guests),
         Err(error) => Err(error),
     };
+    let needs_admin = guests.as_ref().map_or(0, |guests| {
+        visible
+            .records
+            .iter()
+            .filter(|record| records::standing(record, guests).is_some())
+            .count()
+    });
     let guests = guests
         .map(|mut guests| {
             guests.retain(|guest| visible.shows(guest));
@@ -77,7 +87,27 @@ async fn load(visible: Visible) -> Loaded {
             );
             error.to_string()
         });
-    Loaded { visible, guests }
+    Loaded {
+        visible,
+        guests,
+        needs_admin,
+    }
+}
+
+/// The line for records only an admin can sort out, so a slot that is used
+/// is never unexplained. Empty when there are none.
+fn needs_admin_line(count: usize, admin: bool) -> String {
+    let what = match count {
+        0 => return String::new(),
+        1 => "One of your machines needs an admin to look at it.".to_owned(),
+        count => format!("{count} of your machines need an admin to look at them."),
+    };
+    let then = if admin {
+        " Lemnos can't tell whether they are still the machines it made: see \"Records to check\" on the environment's page."
+    } else {
+        " Lemnos can't tell whether it is still the machine it made, so it doesn't show here, but it still counts against your quota until an admin confirms or releases it."
+    };
+    format!("{what}{then}")
 }
 
 /// The names owners are shown by.
@@ -193,6 +223,29 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
         .as_deref()
         .map(|code| power_notice(code, query.action.as_deref(), query.machine.as_deref()));
     let power_failed = power_problem(query.machine.as_deref());
+    let needs_admin = needs_admin_line(
+        loaded.iter().map(|entry| entry.needs_admin).sum(),
+        access.admin,
+    );
+    // Machines being created, and creations that failed, with where to read
+    // about them.
+    let in_the_making: Vec<(MachineRecord, String, String)> = loaded
+        .iter()
+        .flat_map(|entry| {
+            entry
+                .visible
+                .records
+                .iter()
+                .filter(|record| record.status != MachineStatus::Active)
+                .map(|record| {
+                    (
+                        record.clone(),
+                        entry.visible.environment.name.clone(),
+                        status::link(cx, record.environment.0, &record.machine),
+                    )
+                })
+        })
+        .collect();
     let unreachable: Vec<Unreachable> = loaded
         .iter()
         .filter_map(|entry| {
@@ -238,12 +291,59 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
             if let Some(reason) = &query.error {
                 problem(message: power_failed.as_str(), detail: reason.as_str(), link: ("", ""))
             }
+            if !needs_admin.is_empty() {
+                notice(tone: "warning", message: needs_admin.as_str())
+            }
             for entry in &unreachable {
                 problem(
                     message: entry.message.as_str(),
                     detail: entry.reason.as_str(),
                     link: (entry.page.as_str(), entry.open.as_str()),
                 )
+            }
+
+            if !in_the_making.is_empty() {
+                <section class="flex flex-col gap-y-3">
+                    <h2 class="section-title">"Being created"</h2>
+                    <div class="data data-stack">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>"State"</th>
+                                    <th>"Name"</th>
+                                    <th>"Owner"</th>
+                                    <th>"Environment"</th>
+                                    <th><span class="sr-only">"Open"</span></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                for (record, environment, link) in &in_the_making {
+                                    <tr>
+                                        <td data-label="State">
+                                            if record.status == MachineStatus::Failed {
+                                                <span class="state state-down">"Failed"</span>
+                                            } else {
+                                                <span class="state">"Being created"</span>
+                                            }
+                                        </td>
+                                        <td data-label="Name" class="name">(record.name.as_str())</td>
+                                        <td data-label="Owner" class="meta">(owners.label(&access, Some(record)))</td>
+                                        <td data-label="Environment" class="meta">(environment.as_str())</td>
+                                        <td class="wide">
+                                            <a href=(link.as_str()) class="button button-sm">
+                                                if record.status == MachineStatus::Failed {
+                                                    "What happened"
+                                                } else {
+                                                    "Follow it"
+                                                }
+                                            </a>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
             }
 
             if loaded.is_empty() && personal {
@@ -384,4 +484,21 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
             }
         </div>
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::needs_admin_line;
+
+    #[test]
+    fn a_used_slot_is_explained() {
+        assert_eq!(needs_admin_line(0, false), "");
+        let one = needs_admin_line(1, false);
+        assert!(
+            one.starts_with("One of your machines needs an admin"),
+            "{one}"
+        );
+        assert!(one.contains("counts against your quota"), "{one}");
+        assert!(needs_admin_line(2, false).starts_with("2 of your machines need"));
+    }
 }
