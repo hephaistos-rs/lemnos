@@ -8,10 +8,12 @@
 //
 // The page that asked for the machine doesn't wait: it shows the record,
 // which says "Being created" until this is done. A copy still running when
-// Lemnos stops waiting stays pending; `reconcile` finishes the job later,
-// from the copy's task (its UPID), not from the guest's tags: those are only
-// set once the copy is done.
+// Lemnos stops waiting (or stops altogether) stays pending; `sweep` runs
+// `reconcile` on it every minute, which finishes the job from the copy's
+// task (its UPID), not from the guest's tags: those are only set once the
+// copy is done.
 
+use std::sync::{Mutex, PoisonError};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use lemnos_db::{Database, MachineRecord, MachineStatus, ProxmoxEnvironment};
@@ -34,6 +36,8 @@ const COPY_WAIT: Duration = Duration::from_secs(30 * 60);
 pub const STALE_AFTER: Duration = Duration::from_secs(15 * 60);
 /// A pending machine's page looks at Proxmox itself once it is this old.
 pub const LOOK_AFTER: Duration = Duration::from_secs(60);
+/// How often `sweep` looks at pending machines.
+const SWEEP_EVERY: Duration = Duration::from_secs(60);
 
 /// Why a creation failed: in words for the owner, and the error behind it
 /// for admins.
@@ -140,7 +144,10 @@ pub fn spawn(
     template: GuestId,
     record: MachineRecord,
 ) {
+    // Taken before the job starts, so a sweep can't get in first.
+    let claim = claim(&record);
     tokio::spawn(async move {
+        let _claim = claim;
         if let Err(failed) = create(&database, &environment, &template, &record).await {
             fail(&database, &record, &failed).await;
         }
@@ -225,13 +232,17 @@ async fn fail(database: &Database, record: &MachineRecord, failed: &Failed) {
 }
 
 /// Looks at one pending machine's copy once, and moves the record on if it
-/// is done. Used when Lemnos starts, for every pending record, and when
-/// someone opens a pending machine's page. It doesn't wait for anything, and
-/// leaves the record as it is when Proxmox can't be asked.
+/// is done. Used by `sweep`, for every pending record, and when someone
+/// opens a pending machine's page. It doesn't wait for anything, leaves the
+/// record as it is when Proxmox can't be asked, and skips one that the job
+/// creating it (or another `reconcile`) has in hand.
 pub async fn reconcile(database: &Database, record: &MachineRecord) {
     if record.status != MachineStatus::Pending {
         return;
     }
+    let Some(_claim) = claim(record) else {
+        return;
+    };
     let environment = match database.proxmox_environment(record.environment).await {
         Ok(Some(environment)) => environment,
         Ok(None) => return,
@@ -344,19 +355,58 @@ async fn finished(database: &Database, client: &Client, record: &MachineRecord, 
     }
 }
 
-/// Picks up every pending machine, in the background: for when Lemnos
-/// starts, since jobs from before are gone.
-pub fn reconcile_all(database: Database) {
+/// Looks at every pending machine now and then, in the background, for as
+/// long as Lemnos runs: the first time right away, which picks up copies
+/// from before Lemnos last stopped, then every `SWEEP_EVERY`. With nothing
+/// pending, each round is one small query.
+pub fn sweep(database: Database) {
     tokio::spawn(async move {
-        match database.pending_machines().await {
-            Ok(records) => {
-                for record in records {
-                    reconcile(&database, &record).await;
+        let mut every = tokio::time::interval(SWEEP_EVERY);
+        every.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        loop {
+            every.tick().await;
+            match database.pending_machines().await {
+                Ok(records) => {
+                    for record in records {
+                        reconcile(&database, &record).await;
+                    }
                 }
+                Err(error) => eprintln!("pending machines not looked at: {error}"),
             }
-            Err(error) => eprintln!("pending machines not looked at: {error}"),
         }
     });
+}
+
+/// The records being worked on in this process, by environment and key:
+/// by the job creating them, or by a `reconcile`. Whoever comes second
+/// leaves the record alone. Across processes sharing a database, the
+/// record's own moves only happen while it is pending (see
+/// `Database::activate_machine`), so they can't happen twice either.
+static IN_HAND: Mutex<Vec<(u64, String)>> = Mutex::new(Vec::new());
+
+/// A record held by [`claim`]; let go of when dropped.
+pub struct Claim {
+    key: (u64, String),
+}
+
+/// Takes the record for this process, unless something here has it.
+pub fn claim(record: &MachineRecord) -> Option<Claim> {
+    let key = (record.environment.0, record.machine.clone());
+    let mut in_hand = IN_HAND.lock().unwrap_or_else(PoisonError::into_inner);
+    if in_hand.contains(&key) {
+        return None;
+    }
+    in_hand.push(key.clone());
+    Some(Claim { key })
+}
+
+impl Drop for Claim {
+    fn drop(&mut self) {
+        IN_HAND
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .retain(|held| *held != self.key);
+    }
 }
 
 #[cfg(test)]
@@ -427,6 +477,25 @@ mod tests {
                 format!("UPID:git:0:0:0:qmclone:8200:{number}:"),
             ))
         }
+    }
+
+    #[test]
+    fn a_record_is_in_one_hand_at_a_time() {
+        let record = MachineRecord::active(
+            lemnos_db::ProxmoxEnvironmentId(1),
+            "pending-lemnos-000000000001",
+            "box",
+            lemnos_db::Owner::Person(lemnos_auth::UserId(1)),
+            None,
+            None,
+        );
+        let first = claim(&record).expect("nobody has it yet");
+        assert!(
+            claim(&record).is_none(),
+            "the job has it; the sweep must wait"
+        );
+        drop(first);
+        assert!(claim(&record).is_some(), "let go of once the job is done");
     }
 
     #[tokio::test]

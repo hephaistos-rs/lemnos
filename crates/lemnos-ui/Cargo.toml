@@ -10,7 +10,7 @@ lemnos-core.workspace = true
 lemnos-auth = { workspace = true, features = ["ldap", "passkeys", "saml"] }
 lemnos-proxmox.workspace = true
 lemnos-db.workspace = true
-tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
 topcoat = { version = "0.10.0", features = ["tailwind", "font-fontsource"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
