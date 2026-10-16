@@ -323,7 +323,7 @@ fn back(cx: &Cx, environment: u64, outcome: Outcome) -> SeeOther {
     )
 }
 
-#[route(POST "./records/confirm")]
+#[route(POST "./confirm")]
 pub async fn confirm(cx: &Cx, Form(input): Form<ConfirmForm>) -> Result<SeeOther> {
     admin_access(cx).await?;
     let environment = stored(cx).await?;
@@ -388,7 +388,7 @@ pub async fn confirm(cx: &Cx, Form(input): Form<ConfirmForm>) -> Result<SeeOther
     ))
 }
 
-#[route(POST "./records/release")]
+#[route(POST "./release")]
 pub async fn release(cx: &Cx, Form(input): Form<ReleaseForm>) -> Result<SeeOther> {
     admin_access(cx).await?;
     let environment = stored(cx).await?;
@@ -410,7 +410,7 @@ const DELETE_WAIT: std::time::Duration = std::time::Duration::from_secs(30);
 
 // Deletes the guest a failed creation left behind, disks and all. Only one
 // that carries the record's marker: anything less isn't certainly it.
-#[route(POST "./records/delete")]
+#[route(POST "./delete")]
 pub async fn delete(cx: &Cx, Form(input): Form<DeleteForm>) -> Result<SeeOther> {
     admin_access(cx).await?;
     let environment = stored(cx).await?;
