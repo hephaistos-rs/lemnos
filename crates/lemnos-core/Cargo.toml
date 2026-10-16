@@ -4,3 +4,5 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+# Same line as lemnos-db; for marker tags.
+rand = "0.9"
