@@ -80,7 +80,7 @@ async fn load(visible: Visible) -> Loaded {
 }
 
 /// The names owners are shown by.
-struct Owners {
+pub struct Owners {
     organizations: HashMap<OrganizationId, String>,
     projects: HashMap<ProjectId, String>,
     // Only filled in for admins, who see everyone's personal machines.
@@ -88,7 +88,7 @@ struct Owners {
 }
 
 impl Owners {
-    async fn load(database: &Database, access: &Access) -> Result<Self> {
+    pub async fn load(database: &Database, access: &Access) -> Result<Self> {
         let organizations = if access.admin {
             database.organizations().await?
         } else {
@@ -123,7 +123,7 @@ impl Owners {
     /// Whose the machine is, in words. A machine Lemnos did not create is
     /// the organisation's when looking at one, and nobody's in particular
     /// otherwise.
-    fn label(&self, access: &Access, record: Option<&MachineRecord>) -> String {
+    pub fn label(&self, access: &Access, record: Option<&MachineRecord>) -> String {
         let unknown = || "-".to_owned();
         match record.map(|record| record.owner) {
             Some(Owner::Person(user)) if user == access.user.id => "You".to_owned(),

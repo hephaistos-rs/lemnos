@@ -31,10 +31,12 @@ use topcoat::{
 use super::{connect, database};
 use crate::{
     access::{access, admin_access},
+    app::console::machines::Owners,
     components::{heat, notice, problem},
 };
 
 pub mod edit;
+pub mod records;
 
 module_param!(pub environment: u64, error = not_found);
 
@@ -261,7 +263,7 @@ pub async fn power_buttons(environment: u64, guest: &Guest, back: &str) -> Resul
 
 #[page]
 pub async fn page(cx: &Cx) -> Result<impl View> {
-    admin_access(cx).await?;
+    let access = admin_access(cx).await?;
     let query = query_params::<Query>(cx)?;
     let environment = stored(cx).await?;
     let id = environment.id.0;
@@ -290,10 +292,22 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
     };
     let power_done = query.notice.as_deref().map(|code| match code {
         "saved" => "Saved. Lemnos signed in with these details.".to_owned(),
+        "confirmed" => {
+            "Record confirmed. The machine carries a new marker and is its owner's again."
+                .to_owned()
+        }
+        "released" => {
+            "Record released. Lemnos no longer counts that machine as anyone's.".to_owned()
+        }
         code => power_notice(code, query.action.as_deref(), query.machine.as_deref()),
     });
     let power_failed = power_problem(query.machine.as_deref());
     let edit = href!(edit::page, Environment(id)).resolve(cx);
+    let to_check = match &overview {
+        Some(overview) => records::to_check(cx, id, &overview.guests).await?,
+        None => Vec::new(),
+    };
+    let owners = Owners::load(database(cx), &access).await?;
 
     Ok(view! {
         <div class="page">
@@ -389,6 +403,15 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
                         </table>
                     </div>
                 </section>
+
+                if !to_check.is_empty() {
+                    records::records_to_check(
+                        environment: id,
+                        entries: &to_check,
+                        access: &access,
+                        owners: &owners,
+                    )
+                }
 
                 <section class="flex flex-col gap-y-3">
                     <h2 class="section-title">"Nodes"</h2>
