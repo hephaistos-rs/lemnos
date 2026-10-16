@@ -16,6 +16,7 @@ const MIGRATIONS: &[fn(Dialect) -> Vec<String>] = &[
     proxmox_environments,
     organizations,
     projects_and_machines,
+    machine_markers,
 ];
 
 fn accounts_and_sessions(dialect: Dialect) -> Vec<String> {
@@ -220,6 +221,13 @@ fn projects_and_machines(dialect: Dialect) -> Vec<String> {
         }
     })
     .collect()
+}
+
+/// The marker tag each machine Lemnos creates carries (see
+/// `lemnos_core::marker`). Records from before have none: they are
+/// unverified until an admin confirms them.
+fn machine_markers(_: Dialect) -> Vec<String> {
+    vec!["ALTER TABLE machines ADD COLUMN marker VARCHAR(32)".to_owned()]
 }
 
 pub(crate) async fn migrate(database: &Database) -> Result<(), sqlx::Error> {

@@ -571,7 +571,10 @@ pub async fn create(cx: &Cx, Form(input): Form<NewMachineForm>) -> Result<SeeOth
         }
         Owner::Organization(_) => "lemnos".to_owned(),
     };
-    let tags = tags_for(owner_tag, &destination);
+    // Ties the record to this guest and no other; see `lemnos_core::marker`.
+    let marker = lemnos_core::marker::generate();
+    let mut tags = tags_for(owner_tag, &destination);
+    tags.push(marker.clone());
     let client = match environments::connect(&destination.environment).await {
         Ok(client) => client,
         Err(error) => return Ok(back(cx, owner, "unreachable", Some(&error.to_string()))),
@@ -595,6 +598,7 @@ pub async fn create(cx: &Cx, Form(input): Form<NewMachineForm>) -> Result<SeeOth
             name: name.clone(),
             owner,
             created_by: Some(access.user.id),
+            marker: Some(marker),
         })
         .await?;
 
