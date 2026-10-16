@@ -133,7 +133,14 @@ impl CopySteps for Steps<'_> {
     }
 
     async fn copy(&self, vmid: VmId) -> Result<Task, ReqwestError> {
-        provision::start_copy(self.client, self.template, vmid, &self.record.name).await
+        provision::start_copy(
+            self.client,
+            self.template,
+            vmid,
+            &self.record.name,
+            self.record.description.as_deref(),
+        )
+        .await
     }
 }
 
@@ -344,6 +351,7 @@ async fn finished(database: &Database, client: &Client, record: &MachineRecord, 
         task,
         &record.name,
         record.marker.as_deref(),
+        record.description.as_deref(),
     )
     .await
     {
@@ -355,7 +363,7 @@ async fn finished(database: &Database, client: &Client, record: &MachineRecord, 
                 &Failed::new(
                     "The copy finished, but a different machine has its ID.",
                     format!(
-                        "guest {vmid} isn't named `{}`, or carries another record's marker",
+                        "guest {vmid} isn't named `{}`, carries another record's marker,                          or lacks the description its copy was given",
                         record.name
                     ),
                 ),

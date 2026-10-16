@@ -48,18 +48,21 @@ pub async fn next_free_id(client: &Client) -> Result<VmId, CreateError> {
     VmId::try_from(i128::from(next)).map_err(|_| CreateError::BadId(next))
 }
 
-/// Starts a full copy of `template` to `vmid`, named `name`. Returns at
-/// once with the task doing it, on the template's node; the copy carries
-/// the template's tags until [`tag_new_copy`] gives it its own.
+/// Starts a full copy of `template` to `vmid`, named `name`, with
+/// `description` in place of the template's. Returns at once with the task
+/// doing it, on the template's node; the copy carries the template's tags
+/// until [`tag_new_copy`] gives it its own.
 pub async fn start_copy(
     client: &Client,
     template: &GuestId,
     vmid: VmId,
     name: &str,
+    description: Option<&str>,
 ) -> Result<tasks::Task, ReqwestError> {
     let options = CloneOptions {
         name: Some(name.to_owned()),
         full: Some(true),
+        description: description.map(str::to_owned),
         ..Default::default()
     };
     clone(client, template, vmid, options).await
@@ -77,21 +80,25 @@ pub fn id_taken(error: &ReqwestError) -> bool {
 /// Whether `guest` is what the finished clone `task` made, as far as
 /// Proxmox can tell. Proxmox keeps no record of which task made a guest
 /// (a copy even carries its template's `meta` creation time), so this goes
-/// by what there is: the task is a clone, the guest is called `name`, and
-/// it carries no marker but `marker`, so it isn't another record's machine.
-/// The caller knows the guest's ID is the one this task was given.
+/// by what there is: the task is a clone, the guest is called `name`, it
+/// carries no marker but `marker`, so it isn't another record's machine,
+/// and, when the copy was given a `description` naming its marker, its
+/// description still holds that line. Only copies from before Lemnos gave
+/// them one go without it. The caller knows the guest's ID is the one
+/// this task was given.
 pub async fn made_by(
     client: &Client,
     guest: &GuestId,
     task: &tasks::Task,
     name: &str,
     marker: Option<&str>,
+    description: Option<&str>,
 ) -> Result<bool, ReqwestError> {
     if !is_clone(&task.upid) {
         return Ok(false);
     }
     let node = NodesClient::new(client).node(&guest.node);
-    let (named, tags) = match guest.kind {
+    let (named, tags, described) = match guest.kind {
         GuestKind::Qemu => {
             let config = node
                 .qemu()
@@ -99,7 +106,8 @@ pub async fn made_by(
                 .config()
                 .get(Default::default())
                 .await?;
-            (config.name.as_deref() == Some(name), config.tags)
+            let described = config.description.map(|text| text.get_value().to_owned());
+            (config.name.as_deref() == Some(name), config.tags, described)
         }
         GuestKind::Lxc => {
             let config = node
@@ -111,10 +119,22 @@ pub async fn made_by(
             let named = config
                 .hostname
                 .is_some_and(|hostname| hostname.get_value() == name);
-            (named, config.tags)
+            let described = config.description.map(|text| text.get_value().to_owned());
+            (named, config.tags, described)
         }
     };
-    Ok(named && only_marker(&split_tags(tags.as_deref()), marker))
+    Ok(named
+        && only_marker(&split_tags(tags.as_deref()), marker)
+        && described_as(described.as_deref(), description))
+}
+
+/// Whether a guest's description holds the line its copy was given, if it
+/// was given one.
+fn described_as(description: Option<&str>, expected: Option<&str>) -> bool {
+    match expected {
+        Some(line) => description.is_some_and(|text| marker::in_description(text, line)),
+        None => true,
+    }
 }
 
 /// Whether a UPID is a copy's: its sixth field is the task type.
@@ -346,6 +366,23 @@ mod tests {
         assert!(only_marker(&tags(&["team-a", ours]), Some(ours)));
         assert!(!only_marker(&tags(&["lemnos-000000000000"]), Some(ours)));
         assert!(!only_marker(&tags(&["lemnos-000000000000"]), None));
+    }
+
+    #[test]
+    fn a_copy_given_a_description_must_still_have_it() {
+        let line = marker::description("lemnos-3f9a0c7e21bd");
+        assert!(described_as(
+            Some(&format!(
+                "{line}
+"
+            )),
+            Some(&line)
+        ));
+        assert!(!described_as(Some("Ubuntu 24.04 template"), Some(&line)));
+        assert!(!described_as(None, Some(&line)));
+        // A record from before descriptions: nothing to look for.
+        assert!(described_as(None, None));
+        assert!(described_as(Some("anything"), None));
     }
 
     #[test]

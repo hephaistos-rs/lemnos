@@ -18,6 +18,7 @@ const MIGRATIONS: &[fn(Dialect) -> Vec<String>] = &[
     projects_and_machines,
     machine_markers,
     machine_lifecycle,
+    machine_descriptions,
 ];
 
 fn accounts_and_sessions(dialect: Dialect) -> Vec<String> {
@@ -255,6 +256,13 @@ fn machine_lifecycle(_: Dialect) -> Vec<String> {
     .into_iter()
     .map(str::to_owned)
     .collect()
+}
+
+/// The description a new machine's copy was given, naming its marker (see
+/// `lemnos_core::marker::description`), so a copy found after a restart
+/// can be told to be the one asked for. Records from before have none.
+fn machine_descriptions(_: Dialect) -> Vec<String> {
+    vec!["ALTER TABLE machines ADD COLUMN description VARCHAR(255)".to_owned()]
 }
 
 pub(crate) async fn migrate(database: &Database) -> Result<(), sqlx::Error> {

@@ -21,6 +21,8 @@ pub struct CloneOptions {
     pub target_node: Option<String>,
     /// Storage for the copy's disks. Only used by a full clone.
     pub storage: Option<String>,
+    /// The copy's description, in place of the source's.
+    pub description: Option<String>,
 }
 
 /// Creates a copy of `source` with the ID `new_id`.
@@ -44,6 +46,7 @@ pub async fn clone(
             params.full = options.full;
             params.target = options.target_node;
             params.storage = options.storage;
+            params.description = options.description;
             node.qemu().vmid(source.vmid).clone().post(params).await?
         }
         GuestKind::Lxc => {
@@ -53,6 +56,7 @@ pub async fn clone(
             params.full = options.full;
             params.target = options.target_node;
             params.storage = options.storage;
+            params.description = options.description;
             node.lxc().vmid(source.vmid).clone().post(params).await?
         }
     };

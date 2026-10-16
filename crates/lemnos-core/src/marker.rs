@@ -37,9 +37,40 @@ pub fn is_marker(tag: &str) -> bool {
     })
 }
 
+/// The line Lemnos puts in a new guest's description, naming its marker,
+/// e.g. `Created by Lemnos (lemnos-3f9a0c7e21bd)`. A copy is given it as
+/// it is made, so it shows the copy is the one Lemnos asked for even
+/// before the guest is tagged.
+pub fn description(marker: &str) -> String {
+    format!("Created by Lemnos ({marker})")
+}
+
+/// Whether `description` holds `line` as a line of its own, as Proxmox
+/// gives it back (it may add a line break, or someone may add notes).
+pub fn in_description(description: &str, line: &str) -> bool {
+    description
+        .lines()
+        .any(|candidate| candidate.trim() == line)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_description_names_its_marker_on_a_line_of_its_own() {
+        let line = description("lemnos-3f9a0c7e21bd");
+        assert_eq!(line, "Created by Lemnos (lemnos-3f9a0c7e21bd)");
+        assert!(in_description(&format!("{line}\n"), &line));
+        assert!(in_description(&format!("notes\n{line}\nmore"), &line));
+        assert!(!in_description("", &line));
+        assert!(!in_description(
+            "Created by Lemnos (lemnos-000000000000)",
+            &line
+        ));
+        // Mentioning it inside other text isn't the line.
+        assert!(!in_description(&format!("not {line}"), &line));
+    }
 
     #[test]
     fn a_new_marker_has_the_form() {
