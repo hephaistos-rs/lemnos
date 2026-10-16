@@ -287,9 +287,12 @@ pub async fn reconcile(database: &Database, record: &MachineRecord) {
             .await;
         }
         Some(Progress::Finished {
-            outcome: Ok(()),
-            started,
-        }) => finished(database, &client, record, started).await,
+            outcome: Ok(()), ..
+        }) => {
+            if let Some(task) = &task {
+                finished(database, &client, record, task).await;
+            }
+        }
         // No task to go by: the copy never started, or Proxmox forgot it.
         None if age(record) >= STALE_AFTER => {
             fail(
@@ -313,7 +316,7 @@ pub async fn reconcile(database: &Database, record: &MachineRecord) {
 
 /// The copy finished well: if the guest at the record's ID is what the task
 /// made, tag it and mark the record active.
-async fn finished(database: &Database, client: &Client, record: &MachineRecord, started: i64) {
+async fn finished(database: &Database, client: &Client, record: &MachineRecord, task: &Task) {
     let Some(vmid) = record.vmid.as_deref() else {
         return;
     };
@@ -335,7 +338,15 @@ async fn finished(database: &Database, client: &Client, record: &MachineRecord, 
         .await;
         return;
     };
-    match provision::made_by(client, &guest.id, &record.name, started).await {
+    match provision::made_by(
+        client,
+        &guest.id,
+        task,
+        &record.name,
+        record.marker.as_deref(),
+    )
+    .await
+    {
         Ok(true) => finish(database, client, record, &guest.id).await,
         Ok(false) => {
             fail(
@@ -344,7 +355,7 @@ async fn finished(database: &Database, client: &Client, record: &MachineRecord, 
                 &Failed::new(
                     "The copy finished, but a different machine has its ID.",
                     format!(
-                        "guest {vmid} isn't named `{}` or is older than the copy task",
+                        "guest {vmid} isn't named `{}`, or carries another record's marker",
                         record.name
                     ),
                 ),

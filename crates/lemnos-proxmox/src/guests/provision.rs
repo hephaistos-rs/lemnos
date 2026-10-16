@@ -74,18 +74,24 @@ pub fn id_taken(error: &ReqwestError) -> bool {
     }
 }
 
-/// Whether `guest` is what `task` made, as far as Proxmox can tell: it is
-/// called `name`, and (for a VM) its config was created no earlier than the
-/// task started. Proxmox doesn't record which task made a guest, so this is
-/// what there is to go on; containers have no creation time to compare.
+/// Whether `guest` is what the finished clone `task` made, as far as
+/// Proxmox can tell. Proxmox keeps no record of which task made a guest
+/// (a copy even carries its template's `meta` creation time), so this goes
+/// by what there is: the task is a clone, the guest is called `name`, and
+/// it carries no marker but `marker`, so it isn't another record's machine.
+/// The caller knows the guest's ID is the one this task was given.
 pub async fn made_by(
     client: &Client,
     guest: &GuestId,
+    task: &tasks::Task,
     name: &str,
-    task_started: i64,
+    marker: Option<&str>,
 ) -> Result<bool, ReqwestError> {
+    if !is_clone(&task.upid) {
+        return Ok(false);
+    }
     let node = NodesClient::new(client).node(&guest.node);
-    Ok(match guest.kind {
+    let (named, tags) = match guest.kind {
         GuestKind::Qemu => {
             let config = node
                 .qemu()
@@ -93,8 +99,7 @@ pub async fn made_by(
                 .config()
                 .get(Default::default())
                 .await?;
-            config.name.as_deref() == Some(name)
-                && created_at(config.meta.as_deref()).is_some_and(|ctime| ctime >= task_started)
+            (config.name.as_deref() == Some(name), config.tags)
         }
         GuestKind::Lxc => {
             let config = node
@@ -103,21 +108,25 @@ pub async fn made_by(
                 .config()
                 .get(Default::default())
                 .await?;
-            config
+            let named = config
                 .hostname
-                .is_some_and(|hostname| hostname.get_value() == name)
+                .is_some_and(|hostname| hostname.get_value() == name);
+            (named, config.tags)
         }
-    })
+    };
+    Ok(named && only_marker(&split_tags(tags.as_deref()), marker))
 }
 
-/// The `ctime` in a VM's `meta` setting, e.g.
-/// `creation-qemu=9.0.2,ctime=1729000000`.
-fn created_at(meta: Option<&str>) -> Option<i64> {
-    meta?
-        .split(',')
-        .find_map(|part| part.strip_prefix("ctime="))?
-        .parse()
-        .ok()
+/// Whether a UPID is a copy's: its sixth field is the task type.
+fn is_clone(upid: &str) -> bool {
+    matches!(upid.split(':').nth(5), Some("qmclone" | "vzclone"))
+}
+
+/// Whether `tags` hold no marker other than `marker`.
+fn only_marker(tags: &[String], marker: Option<&str>) -> bool {
+    tags.iter()
+        .filter(|tag| marker::is_marker(tag))
+        .all(|tag| Some(tag.as_str()) == marker)
 }
 
 /// The guest's tags, as its config holds them.
@@ -320,13 +329,23 @@ mod tests {
     }
 
     #[test]
-    fn creation_time_comes_from_meta() {
-        assert_eq!(
-            created_at(Some("creation-qemu=9.0.2,ctime=1729000000")),
-            Some(1729000000)
-        );
-        assert_eq!(created_at(Some("creation-qemu=9.0.2")), None);
-        assert_eq!(created_at(None), None);
+    fn only_a_clone_task_made_a_copy() {
+        assert!(is_clone(
+            "UPID:git:000A1B2C:0012C3D4:6AD2A404:qmclone:8200:root@pam!lemnos:"
+        ));
+        assert!(is_clone("UPID:git:0:0:0:vzclone:9000:root@pam:"));
+        assert!(!is_clone("UPID:git:0:0:0:qmstart:100:root@pam:"));
+        assert!(!is_clone("nonsense"));
+    }
+
+    #[test]
+    fn a_guest_with_another_records_marker_is_not_ours() {
+        let ours = "lemnos-3f9a0c7e21bd";
+        // A fresh copy carries its template's tags only.
+        assert!(only_marker(&tags(&["noble", "template"]), Some(ours)));
+        assert!(only_marker(&tags(&["team-a", ours]), Some(ours)));
+        assert!(!only_marker(&tags(&["lemnos-000000000000"]), Some(ours)));
+        assert!(!only_marker(&tags(&["lemnos-000000000000"]), None));
     }
 
     #[test]
