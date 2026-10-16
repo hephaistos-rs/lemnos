@@ -194,22 +194,22 @@ async fn templates(destination: &Destination) -> std::result::Result<Vec<Guest>,
     Ok(templates)
 }
 
-/// Forgets records of machines that were deleted behind Lemnos' back, so
-/// they don't count against anyone any more. An environment that can't be
-/// reached keeps its records.
+/// The records that count against their owner. A record whose guest is
+/// gone (deleted behind Lemnos' back) is forgotten.
+///
+/// One whose ID points at a guest without its marker still counts, and is
+/// left for an admin to confirm or release (see the environment's page). It
+/// gives its owner nothing, but a copy that outlasted `CREATE_WAIT` looks
+/// just like that until its tags are set, and must not make room for
+/// another. An environment that can't be reached keeps its records too.
 async fn prune(database: &Database, records: Vec<MachineRecord>) -> Result<Vec<MachineRecord>> {
     let mut kept = Vec::new();
-    let mut checked: Vec<(lemnos_db::ProxmoxEnvironmentId, Option<Vec<String>>)> = Vec::new();
+    let mut checked: Vec<(lemnos_db::ProxmoxEnvironmentId, Option<Vec<Guest>>)> = Vec::new();
     for record in records {
         if !checked.iter().any(|(id, _)| *id == record.environment) {
             let existing = match database.proxmox_environment(record.environment).await? {
                 Some(environment) => match environments::connect(&environment).await {
-                    Ok(client) => guests::list(&client).await.ok().map(|guests| {
-                        guests
-                            .iter()
-                            .map(|guest| guest.id.vmid.to_string())
-                            .collect()
-                    }),
+                    Ok(client) => guests::list(&client).await.ok(),
                     Err(_) => None,
                 },
                 None => None,
@@ -220,13 +220,19 @@ async fn prune(database: &Database, records: Vec<MachineRecord>) -> Result<Vec<M
             .iter()
             .find(|(id, _)| *id == record.environment)
             .and_then(|(_, existing)| existing.as_ref());
-        match existing {
-            Some(existing) if !existing.contains(&record.machine) => {
-                database
-                    .forget_machine(record.environment, &record.machine)
-                    .await?;
-            }
-            _ => kept.push(record),
+        let Some(existing) = existing else {
+            kept.push(record);
+            continue;
+        };
+        if existing
+            .iter()
+            .any(|guest| guest.id.vmid.to_string() == record.machine)
+        {
+            kept.push(record);
+        } else {
+            database
+                .forget_machine(record.environment, &record.machine)
+                .await?;
         }
     }
     Ok(kept)

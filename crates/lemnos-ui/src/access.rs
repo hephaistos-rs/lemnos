@@ -82,11 +82,25 @@ pub struct Visible {
     pub records: Vec<MachineRecord>,
 }
 
+/// Whether the record is about this guest: the same ID, and the guest still
+/// carries the record's marker tag. The ID alone is never enough, since
+/// Proxmox gives a freed ID to the next guest made, whoever's it is. A record
+/// without a marker (from before there were any) applies to no guest until
+/// an admin confirms it; one whose marker was taken off in Proxmox stops
+/// applying. Either way the machine drops out of its owner's view and is
+/// shown to nobody as theirs.
+pub fn applies_to(record: &MachineRecord, guest: &Guest) -> bool {
+    record.machine == guest.id.vmid.to_string()
+        && record
+            .marker
+            .as_ref()
+            .is_some_and(|marker| guest.tags.contains(marker))
+}
+
 impl Visible {
     /// Who owns the guest, if Lemnos created it.
     pub fn record(&self, guest: &Guest) -> Option<&MachineRecord> {
-        let machine = guest.id.vmid.to_string();
-        self.records.iter().find(|record| record.machine == machine)
+        self.records.iter().find(|record| applies_to(record, guest))
     }
 
     pub fn shows(&self, guest: &Guest) -> bool {
@@ -501,4 +515,77 @@ pub async fn sync_organizations(
         }
     }
     Ok(through)
+}
+
+#[cfg(test)]
+mod tests {
+    use lemnos_auth::UserId;
+    use lemnos_db::ProxmoxEnvironmentId;
+    use lemnos_proxmox::guests::{GuestId, GuestKind, GuestStatus, VmId};
+
+    use super::*;
+
+    const MARKER: &str = "lemnos-3f9a0c7e21bd";
+
+    fn guest(vmid: u32, tags: &[&str]) -> Guest {
+        Guest {
+            id: GuestId {
+                node: "pve".into(),
+                vmid: VmId::try_from(i128::from(vmid)).unwrap(),
+                kind: GuestKind::Qemu,
+            },
+            name: Some("scratch".into()),
+            status: GuestStatus::Stopped,
+            template: false,
+            cpu: None,
+            max_cpu: None,
+            mem: None,
+            max_mem: None,
+            uptime: None,
+            tags: tags.iter().map(|tag| tag.to_string()).collect(),
+        }
+    }
+
+    fn record(vmid: &str, marker: Option<&str>) -> MachineRecord {
+        MachineRecord {
+            environment: ProxmoxEnvironmentId(1),
+            machine: vmid.into(),
+            name: "scratch".into(),
+            owner: Owner::Person(UserId(7)),
+            created_by: Some(UserId(7)),
+            marker: marker.map(str::to_owned),
+        }
+    }
+
+    #[test]
+    fn the_same_id_and_marker_match() {
+        assert!(applies_to(
+            &record("100", Some(MARKER)),
+            &guest(100, &["personal-jo", MARKER])
+        ));
+    }
+
+    #[test]
+    fn the_same_id_alone_does_not() {
+        // The ID was handed to someone else's new guest.
+        assert!(!applies_to(
+            &record("100", Some(MARKER)),
+            &guest(100, &["team-b"])
+        ));
+        // Another marker: another machine of Lemnos's.
+        assert!(!applies_to(
+            &record("100", Some(MARKER)),
+            &guest(100, &["lemnos-000000000000"])
+        ));
+        // A record from before markers.
+        assert!(!applies_to(&record("100", None), &guest(100, &[MARKER])));
+    }
+
+    #[test]
+    fn the_marker_on_another_id_does_not() {
+        assert!(!applies_to(
+            &record("100", Some(MARKER)),
+            &guest(101, &[MARKER])
+        ));
+    }
 }
