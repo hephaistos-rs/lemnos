@@ -297,7 +297,8 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
                 .to_owned()
         }
         "released" => {
-            "Record released. Lemnos no longer counts that machine as anyone's.".to_owned()
+            "Released. The machine stays in Proxmox as it was; Lemnos stopped tracking it, so it no longer counts against anyone and can't be deleted from Lemnos."
+                .to_owned()
         }
         "left-deleted" => "The machine the failed creation left behind was deleted.".to_owned(),
         code => power_notice(code, query.action.as_deref(), query.machine.as_deref()),

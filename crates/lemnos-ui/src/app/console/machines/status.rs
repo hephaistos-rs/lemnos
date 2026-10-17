@@ -1,6 +1,6 @@
 // /machines/status: a machine Lemnos is creating, or failed to create.
 //
-//   GET  /machines/status?environment=...&record=...   where it is; refreshes itself while pending
+//   GET  /machines/status?environment=...&record=...   where it is; a Refresh header reloads it while pending
 //   POST /machines/status/retry                        forgets a failed one, back to the form
 //   POST /machines/status/remove                       forgets a failed one
 //
@@ -14,9 +14,12 @@ use topcoat::{
     Result,
     context::Cx,
     router::{
+        HeaderName, HeaderValue,
         content::Form,
         error::{RouterErrorExt, SeeOther, forbidden, see_other},
-        href, page, query_params, route,
+        href, page, query_params,
+        response::response_headers,
+        route,
     },
     view::{View, view},
 };
@@ -27,7 +30,8 @@ use crate::{
     creation,
 };
 
-/// How often a pending machine's page reloads itself, in seconds.
+/// How often a pending machine's page reloads itself, in seconds: the
+/// value of its `Refresh` header.
 const REFRESH_EVERY: &str = "10";
 
 /// The record, as links to this page name it.
@@ -136,13 +140,17 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
         .unwrap_or_else(|| "Creating the machine didn't work.".to_owned());
     let detail = record.failure_detail.clone().unwrap_or_default();
     let pending = record.status == MachineStatus::Pending;
+    if pending {
+        // The browser reloads the page by itself, with no script; the link
+        // on it does the same by hand.
+        response_headers(cx).append(
+            HeaderName::from_static("refresh"),
+            HeaderValue::from_static(REFRESH_EVERY),
+        );
+    }
 
     Ok(view! {
         <div class="page-narrow">
-            if pending {
-                // Reloads itself, with no script; the link below does the same.
-                <meta http-equiv="refresh" content=(REFRESH_EVERY)>
-            }
             <div class="flex flex-col gap-y-2">
                 <a href=(href!(super::page)) class="back-link self-start">"All machines"</a>
                 <div class="page-head">

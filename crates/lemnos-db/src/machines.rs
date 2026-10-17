@@ -16,6 +16,7 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use lemnos_auth::UserId;
+use lemnos_core::marker;
 use sqlx::{Row, any::AnyRow};
 
 use crate::{
@@ -123,6 +124,9 @@ pub struct MachineRecord {
     pub task: Option<String>,
     /// The tags it is to carry once copied, its marker included.
     pub tags: Vec<String>,
+    /// The description its copy is given, naming its marker. `None` for
+    /// records from before Lemnos gave copies one.
+    pub description: Option<String>,
     /// Why it failed, in words its owner can read.
     pub failure: Option<String>,
     /// The error behind that, for admins.
@@ -155,6 +159,7 @@ impl MachineRecord {
             status: MachineStatus::Active,
             task: None,
             tags: Vec::new(),
+            description: None,
             failure: None,
             failure_detail: None,
             created_at: 0,
@@ -207,7 +212,7 @@ fn store_error(error: sqlx::Error) -> OrganizationStoreError {
 
 const MACHINE_COLUMNS: &str = "environment_id, machine, name, user_id, organization_id, \
      project_id, created_by, marker, status, vmid, task, tags, failure, failure_detail, \
-     created_at, updated_at";
+     created_at, updated_at, description";
 
 fn record_from(row: &AnyRow) -> Result<MachineRecord> {
     let get = |index: usize| -> Result<Option<u64>> {
@@ -252,6 +257,7 @@ fn record_from(row: &AnyRow) -> Result<MachineRecord> {
         failure_detail: text(13)?,
         created_at: get(14)?.unwrap_or(0),
         updated_at: get(15)?.unwrap_or(0),
+        description: text(16)?,
     })
 }
 
@@ -464,7 +470,7 @@ impl Database {
         let tags = (!record.tags.is_empty()).then(|| record.tags.join(";"));
         self.query(&format!(
             "INSERT INTO machines ({MACHINE_COLUMNS})
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         ))
         .bind(id(record.environment.0))
         .bind(record.machine.clone())
@@ -482,6 +488,7 @@ impl Database {
         .bind(record.failure_detail.clone())
         .bind(id(record.created_at))
         .bind(id(record.updated_at))
+        .bind(record.description.clone())
         .execute(executor)
         .await
         .map_err(store_error)?;
@@ -572,6 +579,7 @@ impl Database {
             vmid: None,
             task: None,
             tags: reservation.tags.clone(),
+            description: Some(marker::description(&reservation.marker)),
             failure: None,
             failure_detail: None,
             created_at,

@@ -55,7 +55,7 @@ fn error_message(code: &str) -> &'static str {
         }
         "template" => "Choose one of the templates.",
         "full" => {
-            "There is no room for another machine. Delete one first, or ask an admin for more."
+            "The quota is reached: there is no room for another machine. Delete one first, or ask an admin for more."
         }
         "nowhere" => "There is no environment to create it in.",
         "unreachable" => "Lemnos can't reach that environment right now.",
@@ -249,20 +249,27 @@ async fn prune(database: &Database, records: Vec<MachineRecord>) -> Result<Vec<M
     Ok(kept)
 }
 
-/// How many machines the owner has, and how many they may have (`None`:
-/// as many as they like).
-async fn room(
-    database: &Database,
-    access: &Access,
-    owner: Owner,
-) -> Result<(usize, Option<usize>)> {
+/// The owner's records that count against them, after forgetting the
+/// ones whose machine is gone; see `prune`.
+async fn counted(database: &Database, owner: Owner) -> Result<Vec<MachineRecord>> {
     let records = match owner {
         Owner::Person(user) => database.personal_machines(user).await?,
         Owner::Project { organization, .. } | Owner::Organization(organization) => {
             database.organization_machines(organization).await?
         }
     };
-    let used = prune(database, records).await?.len();
+    prune(database, records).await
+}
+
+/// How many machines the owner has, and how many they may have (`None`:
+/// as many as they like). For showing; the check itself is
+/// `Database::reserve_machine`.
+async fn room(
+    database: &Database,
+    access: &Access,
+    owner: Owner,
+) -> Result<(usize, Option<usize>)> {
+    let used = counted(database, owner).await?.len();
     let limit = match owner.organization() {
         _ if access.admin => None,
         None => Some(PERSONAL_LIMIT),
@@ -556,10 +563,10 @@ pub async fn create(cx: &Cx, Form(input): Form<NewMachineForm>) -> Result<SeeOth
     else {
         return Ok(back(cx, owner, "nowhere", None));
     };
-    let (used, limit) = room(database, &access, owner).await?;
-    if limit.is_some_and(|limit| used >= limit) {
-        return Ok(back(cx, owner, "full", None));
-    }
+    // Records of machines deleted behind Lemnos' back would take up room,
+    // so they are forgotten first. Whether there is room is up to the
+    // reservation below, and only to it.
+    counted(database, owner).await?;
     // The form names the template, so it is checked against what is offered.
     let offered = match templates(&destination).await {
         Ok(offered) => offered,

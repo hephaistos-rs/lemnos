@@ -141,6 +141,11 @@ async fn transitions(database: &Database) {
     assert_eq!(pending.machine, format!("pending-{}", wanted.marker));
     assert_eq!(pending.marker.as_deref(), Some(wanted.marker.as_str()));
     assert_eq!(pending.tags, wanted.tags);
+    // The description its copy is to be given names the marker.
+    assert_eq!(
+        pending.description,
+        Some(lemnos_core::marker::description(&wanted.marker))
+    );
     assert_eq!(
         (pending.vmid.as_deref(), pending.task.as_deref()),
         (None, None)
@@ -230,6 +235,7 @@ async fn transitions(database: &Database) {
     assert_eq!(stored.status, MachineStatus::Active);
     assert_eq!(stored.name, wanted.name);
     assert_eq!(stored.marker.as_deref(), Some(wanted.marker.as_str()));
+    assert_eq!(stored.description, pending.description);
     // Found by its marker under its new key.
     assert_eq!(
         database

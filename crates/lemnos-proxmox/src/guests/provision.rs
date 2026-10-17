@@ -48,18 +48,21 @@ pub async fn next_free_id(client: &Client) -> Result<VmId, CreateError> {
     VmId::try_from(i128::from(next)).map_err(|_| CreateError::BadId(next))
 }
 
-/// Starts a full copy of `template` to `vmid`, named `name`. Returns at
-/// once with the task doing it, on the template's node; the copy carries
-/// the template's tags until [`tag_new_copy`] gives it its own.
+/// Starts a full copy of `template` to `vmid`, named `name`, with
+/// `description` in place of the template's. Returns at once with the task
+/// doing it, on the template's node; the copy carries the template's tags
+/// until [`tag_new_copy`] gives it its own.
 pub async fn start_copy(
     client: &Client,
     template: &GuestId,
     vmid: VmId,
     name: &str,
+    description: Option<&str>,
 ) -> Result<tasks::Task, ReqwestError> {
     let options = CloneOptions {
         name: Some(name.to_owned()),
         full: Some(true),
+        description: description.map(str::to_owned),
         ..Default::default()
     };
     clone(client, template, vmid, options).await
@@ -74,18 +77,28 @@ pub fn id_taken(error: &ReqwestError) -> bool {
     }
 }
 
-/// Whether `guest` is what `task` made, as far as Proxmox can tell: it is
-/// called `name`, and (for a VM) its config was created no earlier than the
-/// task started. Proxmox doesn't record which task made a guest, so this is
-/// what there is to go on; containers have no creation time to compare.
+/// Whether `guest` is what the finished clone `task` made, as far as
+/// Proxmox can tell. Proxmox keeps no record of which task made a guest
+/// (a copy even carries its template's `meta` creation time), so this goes
+/// by what there is: the task is a clone, the guest is called `name`, it
+/// carries no marker but `marker`, so it isn't another record's machine,
+/// and, when the copy was given a `description` naming its marker, its
+/// description still holds that line. Only copies from before Lemnos gave
+/// them one go without it. The caller knows the guest's ID is the one
+/// this task was given.
 pub async fn made_by(
     client: &Client,
     guest: &GuestId,
+    task: &tasks::Task,
     name: &str,
-    task_started: i64,
+    marker: Option<&str>,
+    description: Option<&str>,
 ) -> Result<bool, ReqwestError> {
+    if !is_clone(&task.upid) {
+        return Ok(false);
+    }
     let node = NodesClient::new(client).node(&guest.node);
-    Ok(match guest.kind {
+    let (named, tags, described) = match guest.kind {
         GuestKind::Qemu => {
             let config = node
                 .qemu()
@@ -93,8 +106,8 @@ pub async fn made_by(
                 .config()
                 .get(Default::default())
                 .await?;
-            config.name.as_deref() == Some(name)
-                && created_at(config.meta.as_deref()).is_some_and(|ctime| ctime >= task_started)
+            let described = config.description.map(|text| text.get_value().to_owned());
+            (config.name.as_deref() == Some(name), config.tags, described)
         }
         GuestKind::Lxc => {
             let config = node
@@ -103,21 +116,37 @@ pub async fn made_by(
                 .config()
                 .get(Default::default())
                 .await?;
-            config
+            let named = config
                 .hostname
-                .is_some_and(|hostname| hostname.get_value() == name)
+                .is_some_and(|hostname| hostname.get_value() == name);
+            let described = config.description.map(|text| text.get_value().to_owned());
+            (named, config.tags, described)
         }
-    })
+    };
+    Ok(named
+        && only_marker(&split_tags(tags.as_deref()), marker)
+        && described_as(described.as_deref(), description))
 }
 
-/// The `ctime` in a VM's `meta` setting, e.g.
-/// `creation-qemu=9.0.2,ctime=1729000000`.
-fn created_at(meta: Option<&str>) -> Option<i64> {
-    meta?
-        .split(',')
-        .find_map(|part| part.strip_prefix("ctime="))?
-        .parse()
-        .ok()
+/// Whether a guest's description holds the line its copy was given, if it
+/// was given one.
+fn described_as(description: Option<&str>, expected: Option<&str>) -> bool {
+    match expected {
+        Some(line) => description.is_some_and(|text| marker::in_description(text, line)),
+        None => true,
+    }
+}
+
+/// Whether a UPID is a copy's: its sixth field is the task type.
+fn is_clone(upid: &str) -> bool {
+    matches!(upid.split(':').nth(5), Some("qmclone" | "vzclone"))
+}
+
+/// Whether `tags` hold no marker other than `marker`.
+fn only_marker(tags: &[String], marker: Option<&str>) -> bool {
+    tags.iter()
+        .filter(|tag| marker::is_marker(tag))
+        .all(|tag| Some(tag.as_str()) == marker)
 }
 
 /// The guest's tags, as its config holds them.
@@ -320,13 +349,40 @@ mod tests {
     }
 
     #[test]
-    fn creation_time_comes_from_meta() {
-        assert_eq!(
-            created_at(Some("creation-qemu=9.0.2,ctime=1729000000")),
-            Some(1729000000)
-        );
-        assert_eq!(created_at(Some("creation-qemu=9.0.2")), None);
-        assert_eq!(created_at(None), None);
+    fn only_a_clone_task_made_a_copy() {
+        assert!(is_clone(
+            "UPID:git:000A1B2C:0012C3D4:6AD2A404:qmclone:8200:root@pam!lemnos:"
+        ));
+        assert!(is_clone("UPID:git:0:0:0:vzclone:9000:root@pam:"));
+        assert!(!is_clone("UPID:git:0:0:0:qmstart:100:root@pam:"));
+        assert!(!is_clone("nonsense"));
+    }
+
+    #[test]
+    fn a_guest_with_another_records_marker_is_not_ours() {
+        let ours = "lemnos-3f9a0c7e21bd";
+        // A fresh copy carries its template's tags only.
+        assert!(only_marker(&tags(&["noble", "template"]), Some(ours)));
+        assert!(only_marker(&tags(&["team-a", ours]), Some(ours)));
+        assert!(!only_marker(&tags(&["lemnos-000000000000"]), Some(ours)));
+        assert!(!only_marker(&tags(&["lemnos-000000000000"]), None));
+    }
+
+    #[test]
+    fn a_copy_given_a_description_must_still_have_it() {
+        let line = marker::description("lemnos-3f9a0c7e21bd");
+        assert!(described_as(
+            Some(&format!(
+                "{line}
+"
+            )),
+            Some(&line)
+        ));
+        assert!(!described_as(Some("Ubuntu 24.04 template"), Some(&line)));
+        assert!(!described_as(None, Some(&line)));
+        // A record from before descriptions: nothing to look for.
+        assert!(described_as(None, None));
+        assert!(described_as(Some("anything"), None));
     }
 
     #[test]
