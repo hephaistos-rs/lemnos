@@ -24,7 +24,9 @@
 use std::fmt;
 use std::time::Duration;
 
+use proxmox_api::ReqwestError;
 use proxmox_api::version::VersionClient;
+use reqwest::StatusCode;
 use tokio::time::Instant;
 
 /// An authenticated Proxmox VE API client.
@@ -43,7 +45,20 @@ pub struct Endpoint {
     /// cert, so you'll often need this, but it's off by default: without
     /// verification, anyone on the network path can read the secret.
     pub accept_invalid_certs: bool,
+    /// How long to wait for a connection to Proxmox before giving up.
+    pub connect_timeout: Duration,
+    /// How long one request may take from start to finished answer.
+    pub request_timeout: Duration,
 }
+
+/// A reachable Proxmox answers within milliseconds, so after this the host
+/// is down or the address is wrong.
+pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
+/// Every slow operation (copying, starting, removing) returns a task ID right
+/// away and is followed with [`crate::tasks::wait`], one short request per
+/// poll. So no single request should get near this; it only stops a hung
+/// Proxmox from holding a page open forever.
+pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
 impl Endpoint {
     pub fn new(url: impl Into<String>, user: impl Into<String>, realm: impl Into<String>) -> Self {
@@ -52,11 +67,23 @@ impl Endpoint {
             user: user.into(),
             realm: realm.into(),
             accept_invalid_certs: false,
+            connect_timeout: CONNECT_TIMEOUT,
+            request_timeout: REQUEST_TIMEOUT,
         }
     }
 
     pub fn accept_invalid_certs(mut self, accept: bool) -> Self {
         self.accept_invalid_certs = accept;
+        self
+    }
+
+    pub fn connect_timeout(mut self, timeout: Duration) -> Self {
+        self.connect_timeout = timeout;
+        self
+    }
+
+    pub fn request_timeout(mut self, timeout: Duration) -> Self {
+        self.request_timeout = timeout;
         self
     }
 }
@@ -103,6 +130,8 @@ pub async fn connect(endpoint: &Endpoint, credentials: &Credentials) -> Result<C
     // certificate checks.
     let http = reqwest::Client::builder()
         .danger_accept_invalid_certs(endpoint.accept_invalid_certs)
+        .connect_timeout(endpoint.connect_timeout)
+        .timeout(endpoint.request_timeout)
         .build()?;
     let client = Client::new(&endpoint.url, &endpoint.user, &endpoint.realm, Some(http));
 
@@ -115,6 +144,26 @@ pub async fn connect(endpoint: &Endpoint, credentials: &Credentials) -> Result<C
     VersionClient::new(&client).get().await?;
 
     Ok(client)
+}
+
+/// Runs a call whose generated return type is `()`, such as setting a
+/// guest's config.
+///
+/// Proxmox answers those with `{"data":null}`. `proxmox_api` reads the `null`
+/// as "no data" and, with no `errors` either, reports a call that worked as
+/// `UnknownFailure(200 OK, ..)`. This turns exactly that case back into
+/// success. A real failure comes with another status, so it still errors.
+pub(crate) async fn no_data(
+    call: impl Future<Output = Result<(), ReqwestError>>,
+) -> Result<(), ReqwestError> {
+    accept_null(call.await)
+}
+
+fn accept_null(result: Result<(), ReqwestError>) -> Result<(), ReqwestError> {
+    match result {
+        Err(ReqwestError::UnknownFailure(StatusCode::OK, _)) => Ok(()),
+        other => other,
+    }
 }
 
 /// How long a ticket stays valid after it was issued.
@@ -153,5 +202,46 @@ pub async fn keep_alive(client: &Client) -> Error {
             Err(error) if renewed.elapsed() >= TICKET_LIFETIME => return error.into(),
             Err(_) => {}
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_null_answer_with_200_is_success() {
+        let null = Err(ReqwestError::UnknownFailure(
+            StatusCode::OK,
+            Some(r#"{"data":null}"#.into()),
+        ));
+        assert!(accept_null(null).is_ok());
+        assert!(accept_null(Ok(())).is_ok());
+    }
+
+    #[test]
+    fn other_failures_still_fail() {
+        let server = Err(ReqwestError::UnknownFailure(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Some("VM 100 is locked (clone)".into()),
+        ));
+        assert!(matches!(
+            accept_null(server),
+            Err(ReqwestError::UnknownFailure(status, _)) if status == StatusCode::INTERNAL_SERVER_ERROR
+        ));
+
+        let errors = Err(ReqwestError::EncounteredErrors(
+            serde_json::json!({"tags": "invalid"}),
+        ));
+        assert!(matches!(
+            accept_null(errors),
+            Err(ReqwestError::EncounteredErrors(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn no_data_awaits_the_call() {
+        let call = async { Err(ReqwestError::UnknownFailure(StatusCode::OK, None)) };
+        assert!(no_data(call).await.is_ok());
     }
 }

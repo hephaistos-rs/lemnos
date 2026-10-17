@@ -14,7 +14,7 @@ use proxmox_api::nodes::node::tasks::upid::log::GetParams;
 use proxmox_api::nodes::node::tasks::upid::status::Status;
 use tokio::time::Instant;
 
-use crate::client::Client;
+use crate::client::{Client, no_data};
 
 /// How often [`wait`] polls the task's status.
 const POLL_INTERVAL: Duration = Duration::from_secs(1);
@@ -72,7 +72,7 @@ pub async fn wait(client: &Client, task: &Task, timeout: Duration) -> Result<(),
 /// undone, and [`wait`] afterwards reports the task as failed.
 pub async fn cancel(client: &Client, task: &Task) -> Result<(), ReqwestError> {
     let tasks = NodesClient::new(client).node(&task.node).tasks();
-    tasks.upid(&task.upid).delete().await
+    no_data(tasks.upid(&task.upid).delete()).await
 }
 
 /// Fetches the task's output, one entry per line and at most `max_lines` of
