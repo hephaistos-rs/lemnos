@@ -95,7 +95,9 @@ pub enum Credentials {
     /// itself and never needs refreshing, so prefer this for services.
     ApiToken {
         /// The token name: the part after `!` in `root@pam!lemnos`.
+        /// [`crate::token::split`] gets it out of the full form.
         id: String,
+        /// The token secret.
         secret: String,
     },
     /// The user's password. It gets exchanged for a ticket that's valid for
@@ -122,6 +124,42 @@ pub enum Error {
     Http(#[from] reqwest::Error),
     #[error("the request to Proxmox failed: {0}")]
     Api(#[from] proxmox_api::ReqwestError),
+}
+
+/// What kind of trouble an [`Error`] is, as far as the person who set up
+/// the environment can do something about it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Failure {
+    /// No answer: wrong address, host down, timed out, or a certificate
+    /// that does not verify.
+    Unreachable,
+    /// Proxmox answered, and turned the login down (HTTP 401): a token ID in
+    /// the wrong form, a wrong secret or password, or an expired token.
+    LoginRejected,
+    /// Signed in, but the user or token may not do this (HTTP 403).
+    NotAllowed,
+    Other,
+}
+
+impl Error {
+    pub fn failure(&self) -> Failure {
+        match self {
+            Self::Http(_) => Failure::Other,
+            Self::Api(error) => failure_of(error),
+        }
+    }
+}
+
+/// [`Error::failure`] for an error straight from a call.
+pub fn failure_of(error: &ReqwestError) -> Failure {
+    match error {
+        ReqwestError::Reqwest(error) if error.is_connect() || error.is_timeout() => {
+            Failure::Unreachable
+        }
+        ReqwestError::UnknownFailure(StatusCode::UNAUTHORIZED, _) => Failure::LoginRejected,
+        ReqwestError::UnknownFailure(StatusCode::FORBIDDEN, _) => Failure::NotAllowed,
+        _ => Failure::Other,
+    }
 }
 
 /// Logs in to `endpoint` and verifies the credentials actually work.
@@ -237,6 +275,24 @@ mod tests {
             accept_null(errors),
             Err(ReqwestError::EncounteredErrors(_))
         ));
+    }
+
+    #[test]
+    fn a_rejected_login_is_told_apart() {
+        let status =
+            |code| ReqwestError::UnknownFailure(code, Some("authentication failure".into()));
+        assert_eq!(
+            failure_of(&status(StatusCode::UNAUTHORIZED)),
+            Failure::LoginRejected
+        );
+        assert_eq!(
+            failure_of(&status(StatusCode::FORBIDDEN)),
+            Failure::NotAllowed
+        );
+        assert_eq!(
+            failure_of(&status(StatusCode::INTERNAL_SERVER_ERROR)),
+            Failure::Other
+        );
     }
 
     #[tokio::test]

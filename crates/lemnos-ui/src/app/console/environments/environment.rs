@@ -1,5 +1,6 @@
 // /environments/{environment}: what runs on one environment (its nodes, guests
-// and storage), with buttons to power guests on and off.
+// and storage), with buttons to power guests on and off. `edit.rs` changes
+// how Lemnos signs in to it.
 //
 //   GET  /environments/{environment}         the overview, for admins
 //   POST /environments/{environment}/power   start, shut down, reboot or stop a guest;
@@ -9,7 +10,7 @@ use std::time::Duration;
 
 use lemnos_db::{ProxmoxEnvironment, ProxmoxEnvironmentId};
 use lemnos_proxmox::{
-    client::Client,
+    client::{Client, Failure},
     guests::{self, Guest, GuestId, GuestKind, GuestStatus, VmId},
     nodes::{self, Node},
     storage::{self, Storage},
@@ -32,6 +33,8 @@ use crate::{
     access::{access, admin_access},
     components::{heat, notice, problem},
 };
+
+pub mod edit;
 
 module_param!(pub environment: u64, error = not_found);
 
@@ -91,6 +94,21 @@ pub fn power_notice(code: &str, action: Option<&str>, machine: Option<&str>) -> 
         Some("create") => format!("{machine} was created. Start it when you need it."),
         Some("delete") => format!("{machine} was deleted."),
         _ => format!("{machine} was updated."),
+    }
+}
+
+/// Why the overview could not be loaded, in words, with what to check.
+fn failure_message(environment: &str, failure: Failure) -> String {
+    match failure {
+        Failure::LoginRejected => format!(
+            "{environment} turned down Lemnos's login. Check the API token ID, which looks like root@pam!lemnos, and its secret; or the password, if it signs in with one."
+        ),
+        Failure::NotAllowed => format!(
+            "Lemnos signed in to {environment}, but isn't allowed to look around. Give the user or API token a role with at least read access, such as PVEAuditor, on /."
+        ),
+        Failure::Unreachable | Failure::Other => format!(
+            "Lemnos can't reach {environment}. Check its address, and whether its certificate is self-signed."
+        ),
     }
 }
 
@@ -261,18 +279,21 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
                 "Proxmox environment `{}` failed: {error:?}",
                 environment.name
             );
-            (None, Some(error.to_string()))
+            (
+                None,
+                Some((
+                    failure_message(&environment.name, error.failure()),
+                    error.to_string(),
+                )),
+            )
         }
     };
-    let power_done = query
-        .notice
-        .as_deref()
-        .map(|code| power_notice(code, query.action.as_deref(), query.machine.as_deref()));
+    let power_done = query.notice.as_deref().map(|code| match code {
+        "saved" => "Saved. Lemnos signed in with these details.".to_owned(),
+        code => power_notice(code, query.action.as_deref(), query.machine.as_deref()),
+    });
     let power_failed = power_problem(query.machine.as_deref());
-    let unreachable = format!(
-        "Lemnos can't reach {}. Check its address, its login and whether its certificate is self-signed.",
-        environment.name
-    );
+    let edit = href!(edit::page, Environment(id)).resolve(cx);
 
     Ok(view! {
         <div class="page">
@@ -286,17 +307,21 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
                 </div>
             </div>
 
-            if let Some(message) = &power_done {
+            // "Saved" only counts once the new details actually worked.
+            if let (Some(message), None) = (&power_done, &failure) {
                 notice(tone: "success", message: message.as_str())
             }
             if let Some(reason) = &query.error {
                 problem(message: power_failed.as_str(), detail: reason.as_str(), link: ("", ""))
             }
 
-            if let Some(reason) = &failure {
+            if let Some((message, reason)) = &failure {
                 <section class="flex flex-col items-start gap-y-4">
-                    problem(message: unreachable.as_str(), detail: reason.as_str(), link: ("", ""))
-                    <a href=(href!(page, Environment(id))) class="button">"Try again"</a>
+                    problem(message: message.as_str(), detail: reason.as_str(), link: ("", ""))
+                    <div class="actions">
+                        <a href=(href!(page, Environment(id))) class="button">"Try again"</a>
+                        <a href=(edit.as_str()) class="button">"Edit environment"</a>
+                    </div>
                 </section>
             }
 

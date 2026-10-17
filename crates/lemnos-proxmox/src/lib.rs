@@ -4,3 +4,4 @@ pub mod guests;
 pub mod nodes;
 pub mod storage;
 pub mod tasks;
+pub mod token;

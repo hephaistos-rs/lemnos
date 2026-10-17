@@ -90,14 +90,15 @@ tracker_key = "bGVtbm9zLWRldi10cmFja2VyLWtleS0zMi1ieXRlcyE="
 # A Proxmox VE environment to manage. There is none in compose.dev.yml, so
 # this is only an example: uncomment it and point it at a real one. Sign in
 # with an API token (as here), or with `password = "..."` instead of the two
-# `token_*` keys. Environments can also be added on the Environments page.
+# `token_*` keys and `user` and `realm` set. Environments can also be added
+# on the Environments page; one declared here is read-only there.
 #
 # [[proxmox]]
 # name = "Lab"
 # url = "https://pve.example.com:8006"
-# user = "root"
-# realm = "pam"
-# token_id = "lemnos"
+# # As Proxmox shows it under Datacenter > Permissions > API Tokens. The
+# # name alone (`token_id = "lemnos"`) works too, next to `user` and `realm`.
+# token_id = "root@pam!lemnos"
 # token_secret = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
 # # Proxmox installs a self-signed certificate by default.
 # accept_invalid_certs = true

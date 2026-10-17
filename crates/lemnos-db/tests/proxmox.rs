@@ -9,7 +9,8 @@
 //! ```
 
 use lemnos_db::{
-    Database, NewProxmoxEnvironment, ProxmoxEnvironmentId, ProxmoxLogin, ProxmoxStoreError,
+    Database, NewProxmoxEnvironment, ProxmoxEnvironmentEdit, ProxmoxEnvironmentId, ProxmoxLogin,
+    ProxmoxStoreError,
 };
 
 const POSTGRES: &str = "postgres://lemnos:lemnos-dev@localhost:54320/lemnos";
@@ -118,6 +119,97 @@ async fn exercise(database: &Database) {
         database.proxmox_environment(missing.id).await.unwrap(),
         None
     );
+
+    // --- edit, keeping the secret ---
+    let kept = database
+        .create_proxmox_environment(with_token(&unique("kept")))
+        .await
+        .unwrap();
+    let edit = ProxmoxEnvironmentEdit {
+        name: unique("kept-renamed"),
+        // Same address; checking certificates again is stricter, so fine.
+        url: "https://pve.example.com:8006".into(),
+        user: "root".into(),
+        realm: "pam".into(),
+        token_id: Some("lemnos".into()),
+        secret: None,
+        accept_invalid_certs: false,
+    };
+    let edited = database
+        .edit_proxmox_environment(kept.id, edit.clone())
+        .await
+        .unwrap();
+    assert_eq!(edited.name, edit.name);
+    assert_eq!(edited.url, edit.url);
+    assert!(!edited.accept_invalid_certs);
+    // Left empty: the stored secret stays.
+    assert_eq!(edited.login, kept.login);
+    assert_eq!(
+        database.proxmox_environment(kept.id).await.unwrap(),
+        Some(edited.clone())
+    );
+
+    // A different token, user, way of signing in or address needs the
+    // secret again, and so does no longer checking the certificate.
+    for changed in [
+        ProxmoxEnvironmentEdit {
+            url: "https://elsewhere.example.com:8006".into(),
+            ..edit.clone()
+        },
+        ProxmoxEnvironmentEdit {
+            accept_invalid_certs: true,
+            ..edit.clone()
+        },
+        ProxmoxEnvironmentEdit {
+            token_id: Some("other".into()),
+            ..edit.clone()
+        },
+        ProxmoxEnvironmentEdit {
+            user: "admin".into(),
+            ..edit.clone()
+        },
+        ProxmoxEnvironmentEdit {
+            token_id: None,
+            ..edit.clone()
+        },
+    ] {
+        assert!(matches!(
+            database.edit_proxmox_environment(kept.id, changed).await,
+            Err(ProxmoxStoreError::SecretNeeded)
+        ));
+    }
+    assert_eq!(
+        database.proxmox_environment(kept.id).await.unwrap(),
+        Some(edited)
+    );
+
+    // Given a secret, it replaces the old one.
+    let replaced = database
+        .edit_proxmox_environment(
+            kept.id,
+            ProxmoxEnvironmentEdit {
+                token_id: Some("other".into()),
+                secret: Some("ffffffff-0000-1111-2222-333333333333".into()),
+                ..edit.clone()
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        replaced.login,
+        ProxmoxLogin::ApiToken {
+            id: "other".into(),
+            secret: "ffffffff-0000-1111-2222-333333333333".into(),
+        }
+    );
+
+    assert!(matches!(
+        database
+            .edit_proxmox_environment(ProxmoxEnvironmentId(u64::from(u32::MAX) + 12345), edit)
+            .await,
+        Err(ProxmoxStoreError::NotFound)
+    ));
+    database.delete_proxmox_environment(kept.id).await.unwrap();
 
     // --- delete ---
     database.delete_proxmox_environment(lab.id).await.unwrap();

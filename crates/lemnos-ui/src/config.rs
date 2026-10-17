@@ -91,11 +91,16 @@ pub struct ProxmoxConfig {
     pub name: String,
     /// Scheme, host and port, e.g. `https://pve.example.com:8006`.
     pub url: String,
-    /// User name without the realm, e.g. `root`.
+    /// User name without the realm, e.g. `root`. Can be left out when
+    /// `token_id` is the full `user@realm!name`.
+    #[serde(default)]
     pub user: String,
-    /// Realm the user belongs to, e.g. `pam` or `pve`.
+    /// Realm the user belongs to, e.g. `pam` or `pve`. Can be left out like
+    /// `user`.
+    #[serde(default)]
     pub realm: String,
-    /// The API token's name, the part after `!` in `root@pam!lemnos`.
+    /// The API token's ID as Proxmox shows it, `root@pam!lemnos`, or just
+    /// the name after the `!`.
     pub token_id: Option<String>,
     pub token_secret: Option<Secret>,
     pub password: Option<Secret>,

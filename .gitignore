@@ -3,3 +3,9 @@
 /lemnos.toml
 # The default SQLite database (and its write-ahead files).
 /lemnos.db*
+
+# All .env files except for the example file.
+# Not generally used, but handy for quickly setting environment variables for local development.
+.env
+.env.*
+!.env.example
