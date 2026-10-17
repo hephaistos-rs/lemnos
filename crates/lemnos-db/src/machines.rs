@@ -80,6 +80,10 @@ pub struct MachineRecord {
     pub owner: Owner,
     /// Who pressed the button. `None` once they are gone.
     pub created_by: Option<UserId>,
+    /// The marker tag the guest was given (see `lemnos_core::marker`). The
+    /// record applies to a guest only while the guest carries it. `None`
+    /// for records from before markers: unverified until an admin confirms.
+    pub marker: Option<String>,
 }
 
 fn id(value: u64) -> i64 {
@@ -91,7 +95,7 @@ fn store_error(error: sqlx::Error) -> OrganizationStoreError {
 }
 
 const MACHINE_COLUMNS: &str =
-    "environment_id, machine, name, user_id, organization_id, project_id, created_by";
+    "environment_id, machine, name, user_id, organization_id, project_id, created_by, marker";
 
 fn record_from(row: &AnyRow) -> Result<MachineRecord> {
     let get = |index: usize| -> Result<Option<u64>> {
@@ -118,6 +122,7 @@ fn record_from(row: &AnyRow) -> Result<MachineRecord> {
         name: row.try_get(2).map_err(store_error)?,
         owner,
         created_by: get(6)?.map(UserId),
+        marker: row.try_get(7).map_err(store_error)?,
     })
 }
 
@@ -310,7 +315,7 @@ impl Database {
             .duration_since(UNIX_EPOCH)
             .map_or(0, |since| since.as_secs());
         self.query(&format!(
-            "INSERT INTO machines ({MACHINE_COLUMNS}, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO machines ({MACHINE_COLUMNS}, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
         ))
         .bind(id(record.environment.0))
         .bind(record.machine.clone())
@@ -319,6 +324,7 @@ impl Database {
         .bind(organization.map(id))
         .bind(project.map(id))
         .bind(record.created_by.map(|user| id(user.0)))
+        .bind(record.marker.clone())
         .bind(id(created_at))
         .execute(&self.pool)
         .await
@@ -374,6 +380,24 @@ impl Database {
         .iter()
         .map(record_from)
         .collect()
+    }
+
+    /// Sets the marker of a record, once an admin confirmed which guest it
+    /// is and Lemnos tagged that guest with it.
+    pub async fn set_machine_marker(
+        &self,
+        environment: ProxmoxEnvironmentId,
+        machine: &str,
+        marker: &str,
+    ) -> Result<()> {
+        self.query("UPDATE machines SET marker = ? WHERE environment_id = ? AND machine = ?")
+            .bind(marker.to_owned())
+            .bind(id(environment.0))
+            .bind(machine.to_owned())
+            .execute(&self.pool)
+            .await
+            .map_err(store_error)?;
+        Ok(())
     }
 
     /// Forgets a machine, for instance because it was deleted.

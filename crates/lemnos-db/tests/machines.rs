@@ -90,6 +90,7 @@ async fn exercise(database: &Database) {
         name: "scratch".into(),
         owner: Owner::Person(alice.id),
         created_by: Some(alice.id),
+        marker: Some(lemnos_core::marker::generate()),
     };
     let shared = MachineRecord {
         environment: lab.id,
@@ -100,6 +101,8 @@ async fn exercise(database: &Database) {
             project: bellows.id,
         },
         created_by: Some(alice.id),
+        // As records from before markers have it.
+        marker: None,
     };
     database.record_machine(&personal).await.unwrap();
     database.record_machine(&shared).await.unwrap();
@@ -114,6 +117,35 @@ async fn exercise(database: &Database) {
     assert_eq!(
         database.environment_machines(lab.id).await.unwrap().len(),
         2
+    );
+
+    // --- markers ---
+    // Stored and read back as given, including none.
+    assert!(
+        personal
+            .marker
+            .as_deref()
+            .is_some_and(lemnos_core::marker::is_marker)
+    );
+    assert_eq!(
+        database.personal_machines(alice.id).await.unwrap()[0].marker,
+        personal.marker
+    );
+    assert_eq!(
+        database.organization_machines(forge.id).await.unwrap()[0].marker,
+        None
+    );
+    // Confirmed by an admin: it gets one.
+    let confirmed = lemnos_core::marker::generate();
+    database
+        .set_machine_marker(lab.id, "101", &confirmed)
+        .await
+        .unwrap();
+    assert_eq!(
+        database.organization_machines(forge.id).await.unwrap()[0]
+            .marker
+            .as_deref(),
+        Some(confirmed.as_str())
     );
 
     // A deleted project leaves its machines to the organisation.

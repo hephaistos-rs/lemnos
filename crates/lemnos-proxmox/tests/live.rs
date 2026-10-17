@@ -1,7 +1,7 @@
 //! Read-only checks against a real Proxmox VE, skipped unless asked for.
 //!
-//! It signs in with the token ID in the full form Proxmox shows, and lists
-//! what is there. It changes nothing. Set the variables, then run it:
+//! It signs in with the token ID in the full form Proxmox shows, lists
+//! what is there and reads each guest's config. It changes nothing. Set the variables, then run it:
 //!
 //! ```text
 //! set -a; . ./.env; set +a
@@ -80,6 +80,21 @@ async fn signs_in_with_the_full_token_id_and_lists() {
     let guests = guests::list(&client)
         .await
         .unwrap_or_else(|error| panic!("listing guests: {}", live.redact(error)));
+    // Reading a config back is what every tag change starts with, and the
+    // generated types have to take a real one. Each guest is only read.
+    for guest in &guests {
+        let tags = guests::provision::tags(&client, &guest.id)
+            .await
+            .unwrap_or_else(|error| {
+                panic!(
+                    "reading guest {}'s config: {}",
+                    guest.id.vmid,
+                    live.redact(error)
+                )
+            });
+        assert_eq!(tags, guest.tags, "guest {}", guest.id.vmid);
+    }
+
     // Counts only: what the variables hold stays out of the output.
     println!(
         "signed in with the full token ID; {} node(s), {} guest(s)",
