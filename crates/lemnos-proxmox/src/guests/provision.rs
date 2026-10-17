@@ -6,13 +6,12 @@
 //! this, marked with these tags". Everything else (who may, and how many) is
 //! decided above this crate.
 
-use std::time::Duration;
-
 use proxmox_api::ReqwestError;
 use proxmox_api::cluster::ClusterClient;
 use proxmox_api::cluster::nextid::GetParams as NextIdParams;
 use proxmox_api::nodes::NodesClient;
 use proxmox_api::nodes::node::{lxc, qemu};
+use proxmox_api::types::bounded_string::BoundedString;
 
 use super::{CloneOptions, Guest, GuestId, GuestKind, VmId, clone, list};
 use lemnos_core::marker;
@@ -37,63 +36,88 @@ pub enum CreateError {
     Api(#[from] ReqwestError),
     #[error("Proxmox returned an ID out of range: {0}")]
     BadId(i64),
-    #[error("copying the template failed: {0}")]
-    Copy(tasks::Error),
 }
 
-/// A guest [`create_from_template`] made.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Created {
-    pub guest: GuestId,
-    /// `false` when the copy was still running at the timeout. The guest
-    /// exists, but is locked until Proxmox is done, and its tags were not
-    /// set: call [`tag_new_copy`] once it is.
-    pub finished: bool,
-}
-
-/// Makes a new guest from `template`: a full copy with the next free ID,
-/// named `name` and carrying `tags` (and none of the template's; see
-/// [`tag_new_copy`]). Waits up to `timeout` for the copy.
-pub async fn create_from_template(
-    client: &Client,
-    template: &GuestId,
-    name: &str,
-    tags: &[String],
-    timeout: Duration,
-) -> Result<Created, CreateError> {
+/// The ID Proxmox would give a new guest now. Another request can be handed
+/// the same one before either copy starts; see [`id_taken`].
+pub async fn next_free_id(client: &Client) -> Result<VmId, CreateError> {
     let next = ClusterClient::new(client)
         .nextid()
         .get(NextIdParams::default())
         .await?;
-    let vmid = VmId::try_from(i128::from(next)).map_err(|_| CreateError::BadId(next))?;
+    VmId::try_from(i128::from(next)).map_err(|_| CreateError::BadId(next))
+}
+
+/// Starts a full copy of `template` to `vmid`, named `name`. Returns at
+/// once with the task doing it, on the template's node; the copy carries
+/// the template's tags until [`tag_new_copy`] gives it its own.
+pub async fn start_copy(
+    client: &Client,
+    template: &GuestId,
+    vmid: VmId,
+    name: &str,
+) -> Result<tasks::Task, ReqwestError> {
     let options = CloneOptions {
         name: Some(name.to_owned()),
         full: Some(true),
         ..Default::default()
     };
-    let task = clone(client, template, vmid, options).await?;
-    // The copy is made on the template's node.
-    let guest = GuestId {
-        node: template.node.clone(),
-        vmid,
-        kind: template.kind,
-    };
-    match tasks::wait(client, &task, timeout).await {
-        Ok(()) => {}
-        // Still copying: the config is locked, so tags can't be set yet.
-        Err(tasks::Error::TimedOut(_)) => {
-            return Ok(Created {
-                guest,
-                finished: false,
-            });
-        }
-        Err(error) => return Err(CreateError::Copy(error)),
+    clone(client, template, vmid, options).await
+}
+
+/// Whether a copy was refused because a guest has its ID already: what
+/// happens when two requests were given the same [`next_free_id`].
+pub fn id_taken(error: &ReqwestError) -> bool {
+    match error {
+        ReqwestError::UnknownFailure(_, Some(message)) => message.contains("already exists"),
+        _ => false,
     }
-    tag_new_copy(client, &guest, tags).await?;
-    Ok(Created {
-        guest,
-        finished: true,
+}
+
+/// Whether `guest` is what `task` made, as far as Proxmox can tell: it is
+/// called `name`, and (for a VM) its config was created no earlier than the
+/// task started. Proxmox doesn't record which task made a guest, so this is
+/// what there is to go on; containers have no creation time to compare.
+pub async fn made_by(
+    client: &Client,
+    guest: &GuestId,
+    name: &str,
+    task_started: i64,
+) -> Result<bool, ReqwestError> {
+    let node = NodesClient::new(client).node(&guest.node);
+    Ok(match guest.kind {
+        GuestKind::Qemu => {
+            let config = node
+                .qemu()
+                .vmid(guest.vmid)
+                .config()
+                .get(Default::default())
+                .await?;
+            config.name.as_deref() == Some(name)
+                && created_at(config.meta.as_deref()).is_some_and(|ctime| ctime >= task_started)
+        }
+        GuestKind::Lxc => {
+            let config = node
+                .lxc()
+                .vmid(guest.vmid)
+                .config()
+                .get(Default::default())
+                .await?;
+            config
+                .hostname
+                .is_some_and(|hostname| hostname.get_value() == name)
+        }
     })
+}
+
+/// The `ctime` in a VM's `meta` setting, e.g.
+/// `creation-qemu=9.0.2,ctime=1729000000`.
+fn created_at(meta: Option<&str>) -> Option<i64> {
+    meta?
+        .split(',')
+        .find_map(|part| part.strip_prefix("ctime="))?
+        .parse()
+        .ok()
 }
 
 /// The guest's tags, as its config holds them.
@@ -274,6 +298,35 @@ mod tests {
             replaced_markers_kept(&tags(&["k3s"]), Vec::new()),
             Vec::<String>::new()
         );
+    }
+
+    #[test]
+    fn a_taken_id_is_recognised() {
+        use proxmox_api::ReqwestError::UnknownFailure;
+        use reqwest::StatusCode;
+
+        let taken = UnknownFailure(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Some(
+                "VM 105 already exists on node 'git'
+"
+                .into(),
+            ),
+        );
+        assert!(id_taken(&taken));
+        let other = UnknownFailure(StatusCode::INTERNAL_SERVER_ERROR, Some("disk full".into()));
+        assert!(!id_taken(&other));
+        assert!(!id_taken(&UnknownFailure(StatusCode::FORBIDDEN, None)));
+    }
+
+    #[test]
+    fn creation_time_comes_from_meta() {
+        assert_eq!(
+            created_at(Some("creation-qemu=9.0.2,ctime=1729000000")),
+            Some(1729000000)
+        );
+        assert_eq!(created_at(Some("creation-qemu=9.0.2")), None);
+        assert_eq!(created_at(None), None);
     }
 
     #[test]

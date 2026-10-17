@@ -275,6 +275,22 @@ impl Access {
         }
     }
 
+    /// Whether the user may look at a machine record of `owner`'s, such as
+    /// one still being created: in whatever scope they are looking at.
+    pub fn can_see_record_of(&self, owner: Owner) -> bool {
+        if self.admin {
+            return true;
+        }
+        match owner {
+            Owner::Person(user) => user == self.user.id,
+            Owner::Organization(organization) => self.role_in(organization).is_some(),
+            Owner::Project {
+                organization,
+                project,
+            } => self.role_in(organization) == Some(Role::Owner) || self.in_project(project),
+        }
+    }
+
     /// Whether the user may create machines for the owner, leaving aside
     /// how many there already are.
     pub fn may_create_for(&self, owner: Owner) -> bool {
@@ -547,14 +563,14 @@ mod tests {
     }
 
     fn record(vmid: &str, marker: Option<&str>) -> MachineRecord {
-        MachineRecord {
-            environment: ProxmoxEnvironmentId(1),
-            machine: vmid.into(),
-            name: "scratch".into(),
-            owner: Owner::Person(UserId(7)),
-            created_by: Some(UserId(7)),
-            marker: marker.map(str::to_owned),
-        }
+        MachineRecord::active(
+            ProxmoxEnvironmentId(1),
+            vmid,
+            "scratch",
+            Owner::Person(UserId(7)),
+            Some(UserId(7)),
+            marker.map(str::to_owned),
+        )
     }
 
     #[test]

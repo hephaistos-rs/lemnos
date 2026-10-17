@@ -36,7 +36,9 @@ mod organizations;
 mod proxmox;
 mod schema;
 
-pub use machines::{MachineRecord, Owner, Project, ProjectId, ProjectMember};
+pub use machines::{
+    Limit, MachineRecord, MachineStatus, Owner, Project, ProjectId, ProjectMember, Reservation,
+};
 pub use organizations::{
     Account, Grant, Member, Membership, Organization, OrganizationId, OrganizationStoreError, Role,
 };

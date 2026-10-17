@@ -2,6 +2,7 @@ mod access;
 mod app;
 mod components;
 mod config;
+mod creation;
 mod qr;
 
 #[tokio::main]

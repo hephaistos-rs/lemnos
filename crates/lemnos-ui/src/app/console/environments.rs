@@ -185,7 +185,7 @@ pub fn error_message(code: &str) -> &'static str {
             "Enter the secret again. Lemnos asks for it when the address, user or token changes, or when you turn on accepting a self-signed certificate, so it is never sent somewhere new without you."
         }
         "managed" => {
-            "This environment is managed by the config file. Change it there; Lemnos reads the file again when it starts."
+            "This environment is managed by the config file. Change or remove it there; Lemnos reads the file again when it starts."
         }
         _ => "Fill in the name, the address and the secret.",
     }
@@ -423,6 +423,8 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
                                         <td data-label="Signs in as">(signs_in_as(known))</td>
                                         <td class="wide">
                                             <div class="actions">
+                                                // The config file brings it back on the next
+                                                // start, so neither editing nor removing sticks.
                                                 if managed_by_config(cx, known) {
                                                     <span class="text-meta text-ink-faint">"Managed by config file"</span>
                                                 } else {
@@ -435,20 +437,20 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
                                                     >
                                                         "Edit"
                                                     </a>
+                                                    <form method="post" action=(href!(remove))>
+                                                        <input
+                                                            type="hidden"
+                                                            name="id"
+                                                            value=(known.id.0.to_string())
+                                                        >
+                                                        <button
+                                                            type="submit"
+                                                            class="button button-sm button-danger"
+                                                        >
+                                                            "Remove"
+                                                        </button>
+                                                    </form>
                                                 }
-                                                <form method="post" action=(href!(remove))>
-                                                    <input
-                                                        type="hidden"
-                                                        name="id"
-                                                        value=(known.id.0.to_string())
-                                                    >
-                                                    <button
-                                                        type="submit"
-                                                        class="button button-sm button-danger"
-                                                    >
-                                                        "Remove"
-                                                    </button>
-                                                </form>
                                             </div>
                                         </td>
                                     </tr>
@@ -583,9 +585,14 @@ pub struct RemoveForm {
 #[route(POST "./remove")]
 pub async fn remove(cx: &Cx, Form(input): Form<RemoveForm>) -> Result<SeeOther> {
     admin_access(cx).await?;
-    database(cx)
-        .delete_proxmox_environment(ProxmoxEnvironmentId(input.id))
-        .await?;
+    let database = database(cx);
+    let id = ProxmoxEnvironmentId(input.id);
+    if let Some(environment) = database.proxmox_environment(id).await?
+        && managed_by_config(cx, &environment)
+    {
+        return Ok(see_other(back(cx, Some("managed"))));
+    }
+    database.delete_proxmox_environment(id).await?;
     Ok(see_other(back(cx, None)))
 }
 

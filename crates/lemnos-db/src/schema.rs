@@ -17,6 +17,7 @@ const MIGRATIONS: &[fn(Dialect) -> Vec<String>] = &[
     organizations,
     projects_and_machines,
     machine_markers,
+    machine_lifecycle,
 ];
 
 fn accounts_and_sessions(dialect: Dialect) -> Vec<String> {
@@ -228,6 +229,32 @@ fn projects_and_machines(dialect: Dialect) -> Vec<String> {
 /// unverified until an admin confirms them.
 fn machine_markers(_: Dialect) -> Vec<String> {
     vec!["ALTER TABLE machines ADD COLUMN marker VARCHAR(32)".to_owned()]
+}
+
+/// Machines being created, and ones whose creation failed, next to the ones
+/// that exist. A machine is reserved (`pending`) before Proxmox is asked to
+/// copy anything, so two requests can't both take the last slot.
+///
+/// Until it is `active`, `machine` holds `pending-` and the marker, and the
+/// VM ID it is being copied to is in `vmid`, with the copy's task in `task`.
+/// `tags` are the tags it is to carry once copied. `failure` says in plain
+/// words why it failed; `failure_detail` is the raw error, for admins.
+/// Every existing row is a machine that exists, so it is `active`.
+fn machine_lifecycle(_: Dialect) -> Vec<String> {
+    [
+        "ALTER TABLE machines ADD COLUMN status VARCHAR(16) NOT NULL DEFAULT 'active'",
+        "ALTER TABLE machines ADD COLUMN vmid VARCHAR(64)",
+        "ALTER TABLE machines ADD COLUMN task VARCHAR(255)",
+        "ALTER TABLE machines ADD COLUMN tags TEXT",
+        "ALTER TABLE machines ADD COLUMN failure VARCHAR(255)",
+        "ALTER TABLE machines ADD COLUMN failure_detail TEXT",
+        "ALTER TABLE machines ADD COLUMN updated_at BIGINT NOT NULL DEFAULT 0",
+        "UPDATE machines SET updated_at = created_at",
+        "CREATE INDEX machines_status ON machines (status)",
+    ]
+    .into_iter()
+    .map(str::to_owned)
+    .collect()
 }
 
 pub(crate) async fn migrate(database: &Database) -> Result<(), sqlx::Error> {

@@ -10,9 +10,10 @@
 // Copying is `lemnos-proxmox`'s job; this page decides who may, where, and
 // how many.
 
-use std::time::Duration;
-
-use lemnos_db::{Database, MachineRecord, OrganizationId, Owner, ProxmoxEnvironment};
+use lemnos_db::{
+    Database, Limit, MachineRecord, MachineStatus, OrganizationId, OrganizationStoreError, Owner,
+    ProxmoxEnvironment, Reservation,
+};
 use lemnos_proxmox::guests::{self, Guest, GuestId, GuestKind, VmId, provision};
 use serde::{Deserialize, Serialize};
 use topcoat::{
@@ -26,18 +27,18 @@ use topcoat::{
     view::{View, view},
 };
 
-use super::super::environments::{self, environment::kind_label};
+use super::{
+    super::environments::{self, environment::kind_label},
+    status,
+};
 use crate::{
     access::{
         Access, PERSONAL_LIMIT, Scope, access, choice_for, choose, database, owner_value,
         parse_owner,
     },
     components::{notice, problem},
+    creation,
 };
-
-/// How long the button waits for Proxmox to copy the template. A large disk
-/// takes longer; the copy then carries on in the background.
-const CREATE_WAIT: Duration = Duration::from_secs(30);
 
 #[query_params(error = bad_request)]
 struct Query {
@@ -220,6 +221,16 @@ async fn prune(database: &Database, records: Vec<MachineRecord>) -> Result<Vec<M
             .iter()
             .find(|(id, _)| *id == record.environment)
             .and_then(|(_, existing)| existing.as_ref());
+        // Only a machine that exists can have gone missing. A pending one
+        // counts as it is; a failed one doesn't count at all.
+        match record.status {
+            MachineStatus::Active => {}
+            MachineStatus::Pending => {
+                kept.push(record);
+                continue;
+            }
+            MachineStatus::Failed => continue,
+        }
         let Some(existing) = existing else {
             kept.push(record);
             continue;
@@ -522,14 +533,6 @@ pub struct NewMachineForm {
     name: String,
 }
 
-/// What the machines page says afterwards; see `environment::power_notice`.
-#[derive(Serialize)]
-struct Done<'a> {
-    notice: &'a str,
-    action: &'a str,
-    machine: &'a str,
-}
-
 #[route(POST)]
 pub async fn create(cx: &Cx, Form(input): Form<NewMachineForm>) -> Result<SeeOther> {
     let access = access(cx).await?;
@@ -581,46 +584,42 @@ pub async fn create(cx: &Cx, Form(input): Form<NewMachineForm>) -> Result<SeeOth
     let marker = lemnos_core::marker::generate();
     let mut tags = tags_for(owner_tag, &destination);
     tags.push(marker.clone());
-    let client = match environments::connect(&destination.environment).await {
-        Ok(client) => client,
-        Err(error) => return Ok(back(cx, owner, "unreachable", Some(&error.to_string()))),
+    let limit = match owner {
+        _ if access.admin => Limit::Unlimited,
+        Owner::Person(_) => Limit::AtMost(PERSONAL_LIMIT as u64),
+        Owner::Organization(_) | Owner::Project { .. } => Limit::OrganizationQuota,
     };
-    let created = match provision::create_from_template(
-        &client,
-        &template,
-        &name,
-        &tags,
-        CREATE_WAIT,
-    )
-    .await
-    {
-        Ok(created) => created,
-        Err(error) => return Ok(back(cx, owner, "failed", Some(&error.to_string()))),
+    // The slot is taken here, before anything is copied: two requests for
+    // the last one can't both get it.
+    let reservation = Reservation {
+        environment: destination.environment.id,
+        name: name.clone(),
+        owner,
+        created_by: Some(access.user.id),
+        marker,
+        tags,
     };
-    database
-        .record_machine(&MachineRecord {
-            environment: destination.environment.id,
-            machine: created.guest.vmid.to_string(),
-            name: name.clone(),
-            owner,
-            created_by: Some(access.user.id),
-            marker: Some(marker),
-        })
-        .await?;
+    let record = match database.reserve_machine(&reservation, limit).await {
+        Ok(record) => record,
+        Err(OrganizationStoreError::QuotaReached) => return Ok(back(cx, owner, "full", None)),
+        Err(error) => return Err(error.into()),
+    };
+    creation::spawn(
+        database.clone(),
+        destination.environment.clone(),
+        template,
+        record.clone(),
+    );
 
     // Show the new machine among the ones it belongs with.
     if !matches!(access.scope, Scope::Everything) {
         choose(cx, &choice_for(owner));
     }
-    Ok(see_other(
-        href!(super::page)
-            .query(Done {
-                notice: if created.finished { "done" } else { "copying" },
-                action: "create",
-                machine: &name,
-            })
-            .resolve(cx),
-    ))
+    Ok(see_other(status::link(
+        cx,
+        record.environment.0,
+        &record.machine,
+    )))
 }
 
 #[cfg(test)]

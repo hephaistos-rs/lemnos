@@ -19,7 +19,7 @@ use lemnos_auth::UserId;
 use sqlx::{Row, any::AnyRow};
 
 use crate::{
-    Database, OrganizationId, OrganizationStoreError, ProxmoxEnvironmentId, organizations,
+    Database, Dialect, OrganizationId, OrganizationStoreError, ProxmoxEnvironmentId, organizations,
 };
 
 type Result<T> = std::result::Result<T, OrganizationStoreError>;
@@ -69,11 +69,42 @@ impl Owner {
     }
 }
 
-/// A machine Lemnos created.
+/// Where a machine Lemnos creates is in its life.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum MachineStatus {
+    /// Reserved, and being copied. Counts against its owner.
+    Pending,
+    /// It exists. Counts against its owner.
+    Active,
+    /// Creating it failed. Doesn't count; kept so its owner hears why.
+    Failed,
+}
+
+impl MachineStatus {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Pending => "pending",
+            Self::Active => "active",
+            Self::Failed => "failed",
+        }
+    }
+
+    fn parse(value: &str) -> Option<Self> {
+        match value {
+            "pending" => Some(Self::Pending),
+            "active" => Some(Self::Active),
+            "failed" => Some(Self::Failed),
+            _ => None,
+        }
+    }
+}
+
+/// A machine Lemnos created, or is creating.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MachineRecord {
     pub environment: ProxmoxEnvironmentId,
-    /// The provider's ID for it; for Proxmox, the VM ID.
+    /// The provider's ID for it; for Proxmox, the VM ID. Until it is active,
+    /// `pending-` and its marker instead: the key the record goes by.
     pub machine: String,
     /// The name it was created with.
     pub name: String,
@@ -84,6 +115,86 @@ pub struct MachineRecord {
     /// record applies to a guest only while the guest carries it. `None`
     /// for records from before markers: unverified until an admin confirms.
     pub marker: Option<String>,
+    pub status: MachineStatus,
+    /// The VM ID it is (being) copied to, once one was chosen. The same as
+    /// `machine` once active.
+    pub vmid: Option<String>,
+    /// The task copying it (a Proxmox UPID), once the copy started.
+    pub task: Option<String>,
+    /// The tags it is to carry once copied, its marker included.
+    pub tags: Vec<String>,
+    /// Why it failed, in words its owner can read.
+    pub failure: Option<String>,
+    /// The error behind that, for admins.
+    pub failure_detail: Option<String>,
+    /// Seconds since the Unix epoch.
+    pub created_at: u64,
+    pub updated_at: u64,
+}
+
+impl MachineRecord {
+    /// A record of a machine that already exists, as `record_machine`
+    /// takes it.
+    pub fn active(
+        environment: ProxmoxEnvironmentId,
+        machine: impl Into<String>,
+        name: impl Into<String>,
+        owner: Owner,
+        created_by: Option<UserId>,
+        marker: Option<String>,
+    ) -> Self {
+        let machine = machine.into();
+        Self {
+            environment,
+            vmid: Some(machine.clone()),
+            machine,
+            name: name.into(),
+            owner,
+            created_by,
+            marker,
+            status: MachineStatus::Active,
+            task: None,
+            tags: Vec::new(),
+            failure: None,
+            failure_detail: None,
+            created_at: 0,
+            updated_at: 0,
+        }
+    }
+}
+
+/// A machine to reserve room for, before anything is copied.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Reservation {
+    pub environment: ProxmoxEnvironmentId,
+    pub name: String,
+    pub owner: Owner,
+    pub created_by: Option<UserId>,
+    /// The marker it will carry; see `lemnos_core::marker`.
+    pub marker: String,
+    /// Every tag it will carry, the marker included.
+    pub tags: Vec<String>,
+}
+
+/// How many machines the owner may have, for [`Database::reserve_machine`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Limit {
+    /// As many as they like: admins.
+    Unlimited,
+    AtMost(u64),
+    /// The organisation's quota, read in the same transaction.
+    OrganizationQuota,
+}
+
+fn now() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |since| since.as_secs())
+}
+
+/// The key a record goes by until its machine exists.
+fn pending_key(marker: &str) -> String {
+    format!("pending-{marker}")
 }
 
 fn id(value: u64) -> i64 {
@@ -94,8 +205,9 @@ fn store_error(error: sqlx::Error) -> OrganizationStoreError {
     organizations::store_error(error)
 }
 
-const MACHINE_COLUMNS: &str =
-    "environment_id, machine, name, user_id, organization_id, project_id, created_by, marker";
+const MACHINE_COLUMNS: &str = "environment_id, machine, name, user_id, organization_id, \
+     project_id, created_by, marker, status, vmid, task, tags, failure, failure_detail, \
+     created_at, updated_at";
 
 fn record_from(row: &AnyRow) -> Result<MachineRecord> {
     let get = |index: usize| -> Result<Option<u64>> {
@@ -116,14 +228,42 @@ fn record_from(row: &AnyRow) -> Result<MachineRecord> {
         (_, None, Some(user)) => Owner::Person(UserId(user)),
         _ => return Err(OrganizationStoreError::UnknownOwner),
     };
+    let text = |index: usize| -> Result<Option<String>> { row.try_get(index).map_err(store_error) };
+    let status: String = row.try_get(8).map_err(store_error)?;
     Ok(MachineRecord {
         environment: ProxmoxEnvironmentId(row.try_get::<i64, _>(0).map_err(store_error)? as u64),
         machine: row.try_get(1).map_err(store_error)?,
         name: row.try_get(2).map_err(store_error)?,
         owner,
         created_by: get(6)?.map(UserId),
-        marker: row.try_get(7).map_err(store_error)?,
+        marker: text(7)?,
+        status: MachineStatus::parse(&status).ok_or(OrganizationStoreError::UnknownStatus)?,
+        vmid: text(9)?,
+        task: text(10)?,
+        tags: text(11)?
+            .map(|tags| {
+                tags.split(';')
+                    .filter(|tag| !tag.is_empty())
+                    .map(str::to_owned)
+                    .collect()
+            })
+            .unwrap_or_default(),
+        failure: text(12)?,
+        failure_detail: text(13)?,
+        created_at: get(14)?.unwrap_or(0),
+        updated_at: get(15)?.unwrap_or(0),
     })
+}
+
+fn owner_columns(owner: Owner) -> (Option<u64>, Option<u64>, Option<u64>) {
+    match owner {
+        Owner::Person(user) => (Some(user.0), None, None),
+        Owner::Project {
+            organization,
+            project,
+        } => (None, Some(organization.0), Some(project.0)),
+        Owner::Organization(organization) => (None, Some(organization.0), None),
+    }
 }
 
 fn project_from(row: &AnyRow) -> Result<Project> {
@@ -301,21 +441,30 @@ impl Database {
 
     // --- machines ---
 
-    /// Remembers who owns a machine Lemnos just created.
+    /// Remembers who owns a machine that exists already, Lemnos' or not.
+    /// New machines go through [`reserve_machine`](Self::reserve_machine).
     pub async fn record_machine(&self, record: &MachineRecord) -> Result<()> {
-        let (user, organization, project) = match record.owner {
-            Owner::Person(user) => (Some(user.0), None, None),
-            Owner::Project {
-                organization,
-                project,
-            } => (None, Some(organization.0), Some(project.0)),
-            Owner::Organization(organization) => (None, Some(organization.0), None),
-        };
-        let created_at = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_or(0, |since| since.as_secs());
+        let created_at = now();
+        self.insert_machine(
+            &self.pool,
+            &MachineRecord {
+                created_at,
+                updated_at: created_at,
+                ..record.clone()
+            },
+        )
+        .await
+    }
+
+    async fn insert_machine<'c, E>(&self, executor: E, record: &MachineRecord) -> Result<()>
+    where
+        E: sqlx::Executor<'c, Database = sqlx::Any>,
+    {
+        let (user, organization, project) = owner_columns(record.owner);
+        let tags = (!record.tags.is_empty()).then(|| record.tags.join(";"));
         self.query(&format!(
-            "INSERT INTO machines ({MACHINE_COLUMNS}, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO machines ({MACHINE_COLUMNS})
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         ))
         .bind(id(record.environment.0))
         .bind(record.machine.clone())
@@ -325,11 +474,273 @@ impl Database {
         .bind(project.map(id))
         .bind(record.created_by.map(|user| id(user.0)))
         .bind(record.marker.clone())
-        .bind(id(created_at))
+        .bind(record.status.as_str())
+        .bind(record.vmid.clone())
+        .bind(record.task.clone())
+        .bind(tags)
+        .bind(record.failure.clone())
+        .bind(record.failure_detail.clone())
+        .bind(id(record.created_at))
+        .bind(id(record.updated_at))
+        .execute(executor)
+        .await
+        .map_err(store_error)?;
+        Ok(())
+    }
+
+    /// Takes a slot for a new machine, before anything is copied: in one
+    /// transaction, it locks the owner, counts their pending and active
+    /// machines, and adds a pending record if there is room. Two requests
+    /// for the last slot can't both get it. Failed records don't count.
+    ///
+    /// The lock: PostgreSQL and MariaDB lock the owner's row with `SELECT
+    /// ... FOR UPDATE`. SQLite has no row locks, so the transaction starts
+    /// with `BEGIN IMMEDIATE`, which takes the database's write lock up
+    /// front; a second one waits for the first to commit.
+    pub async fn reserve_machine(
+        &self,
+        reservation: &Reservation,
+        limit: Limit,
+    ) -> Result<MachineRecord> {
+        let mut transaction = match self.dialect {
+            Dialect::Sqlite => self.pool.begin_with("BEGIN IMMEDIATE").await,
+            Dialect::Postgres | Dialect::MySql => self.pool.begin().await,
+        }
+        .map_err(store_error)?;
+
+        let (lock, owner_id, counted) = match reservation.owner {
+            Owner::Person(user) => (
+                "SELECT id FROM users WHERE id = ?",
+                user.0,
+                "SELECT COUNT(*) FROM machines
+                 WHERE user_id = ? AND organization_id IS NULL
+                   AND status IN ('pending', 'active')",
+            ),
+            Owner::Organization(organization) | Owner::Project { organization, .. } => (
+                "SELECT id FROM organizations WHERE id = ?",
+                organization.0,
+                "SELECT COUNT(*) FROM machines
+                 WHERE organization_id = ? AND status IN ('pending', 'active')",
+            ),
+        };
+        if self.dialect != Dialect::Sqlite {
+            self.query(&format!("{lock} FOR UPDATE"))
+                .bind(id(owner_id))
+                .fetch_optional(&mut *transaction)
+                .await
+                .map_err(store_error)?;
+        }
+        let limit = match limit {
+            Limit::Unlimited => None,
+            Limit::AtMost(limit) => Some(limit),
+            Limit::OrganizationQuota => {
+                let quota: Option<i64> = self
+                    .query("SELECT machine_quota FROM organizations WHERE id = ?")
+                    .bind(id(owner_id))
+                    .fetch_optional(&mut *transaction)
+                    .await
+                    .map_err(store_error)?
+                    .map(|row| row.try_get(0))
+                    .transpose()
+                    .map_err(store_error)?;
+                Some(quota.map_or(0, |quota| quota.max(0) as u64))
+            }
+        };
+        if let Some(limit) = limit {
+            let used: i64 = self
+                .query(counted)
+                .bind(id(owner_id))
+                .fetch_one(&mut *transaction)
+                .await
+                .map_err(store_error)?
+                .try_get(0)
+                .map_err(store_error)?;
+            if used.max(0) as u64 >= limit {
+                return Err(OrganizationStoreError::QuotaReached);
+            }
+        }
+
+        let created_at = now();
+        let record = MachineRecord {
+            environment: reservation.environment,
+            machine: pending_key(&reservation.marker),
+            name: reservation.name.clone(),
+            owner: reservation.owner,
+            created_by: reservation.created_by,
+            marker: Some(reservation.marker.clone()),
+            status: MachineStatus::Pending,
+            vmid: None,
+            task: None,
+            tags: reservation.tags.clone(),
+            failure: None,
+            failure_detail: None,
+            created_at,
+            updated_at: created_at,
+        };
+        self.insert_machine(&mut *transaction, &record).await?;
+        transaction.commit().await.map_err(store_error)?;
+        Ok(record)
+    }
+
+    /// Notes the VM ID a pending machine is being copied to, and once the
+    /// copy started, its task. Called before each try, so a guest that
+    /// turns up at the ID can be traced back even if Lemnos stops halfway.
+    pub async fn machine_started(
+        &self,
+        environment: ProxmoxEnvironmentId,
+        key: &str,
+        vmid: &str,
+        task: Option<&str>,
+    ) -> Result<()> {
+        self.query(
+            "UPDATE machines SET vmid = ?, task = ?, updated_at = ?
+             WHERE environment_id = ? AND machine = ? AND status = 'pending'",
+        )
+        .bind(vmid.to_owned())
+        .bind(task.map(str::to_owned))
+        .bind(id(now()))
+        .bind(id(environment.0))
+        .bind(key.to_owned())
         .execute(&self.pool)
         .await
         .map_err(store_error)?;
         Ok(())
+    }
+
+    /// Marks a pending machine as existing, under its VM ID. Any other
+    /// active record of that ID is of a guest deleted behind Lemnos' back
+    /// (the ID was free to copy to), so it goes. Returns the record, or
+    /// `None` if it wasn't pending (any more).
+    pub async fn activate_machine(
+        &self,
+        environment: ProxmoxEnvironmentId,
+        key: &str,
+    ) -> Result<Option<MachineRecord>> {
+        let mut transaction = self.pool.begin().await.map_err(store_error)?;
+        let Some(record) = self
+            .query(&format!(
+                "SELECT {MACHINE_COLUMNS} FROM machines
+                 WHERE environment_id = ? AND machine = ? AND status = 'pending'"
+            ))
+            .bind(id(environment.0))
+            .bind(key.to_owned())
+            .fetch_optional(&mut *transaction)
+            .await
+            .map_err(store_error)?
+            .as_ref()
+            .map(record_from)
+            .transpose()?
+        else {
+            return Ok(None);
+        };
+        let Some(vmid) = record.vmid.clone() else {
+            return Ok(None);
+        };
+        self.query(
+            "DELETE FROM machines WHERE environment_id = ? AND machine = ? AND status = 'active'",
+        )
+        .bind(id(environment.0))
+        .bind(vmid.clone())
+        .execute(&mut *transaction)
+        .await
+        .map_err(store_error)?;
+        let updated_at = now();
+        self.query(
+            "UPDATE machines SET machine = ?, status = 'active', updated_at = ?
+             WHERE environment_id = ? AND machine = ?",
+        )
+        .bind(vmid.clone())
+        .bind(id(updated_at))
+        .bind(id(environment.0))
+        .bind(key.to_owned())
+        .execute(&mut *transaction)
+        .await
+        .map_err(store_error)?;
+        transaction.commit().await.map_err(store_error)?;
+        Ok(Some(MachineRecord {
+            machine: vmid,
+            status: MachineStatus::Active,
+            updated_at,
+            ..record
+        }))
+    }
+
+    /// Marks a pending machine as failed, which frees its slot. `reason` is
+    /// for its owner; `detail` for admins. Returns whether it was pending.
+    pub async fn fail_machine(
+        &self,
+        environment: ProxmoxEnvironmentId,
+        key: &str,
+        reason: &str,
+        detail: &str,
+    ) -> Result<bool> {
+        let done = self
+            .query(
+                "UPDATE machines SET status = 'failed', failure = ?, failure_detail = ?,
+                     updated_at = ?
+                 WHERE environment_id = ? AND machine = ? AND status = 'pending'",
+            )
+            .bind(reason.to_owned())
+            .bind(detail.to_owned())
+            .bind(id(now()))
+            .bind(id(environment.0))
+            .bind(key.to_owned())
+            .execute(&self.pool)
+            .await
+            .map_err(store_error)?;
+        Ok(done.rows_affected() > 0)
+    }
+
+    /// One record, by the key it goes by (see [`MachineRecord::machine`]).
+    pub async fn machine_record(
+        &self,
+        environment: ProxmoxEnvironmentId,
+        key: &str,
+    ) -> Result<Option<MachineRecord>> {
+        self.query(&format!(
+            "SELECT {MACHINE_COLUMNS} FROM machines WHERE environment_id = ? AND machine = ?"
+        ))
+        .bind(id(environment.0))
+        .bind(key.to_owned())
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(store_error)?
+        .as_ref()
+        .map(record_from)
+        .transpose()
+    }
+
+    /// The record carrying `marker`, whatever key it goes by now: a pending
+    /// record is renamed to its VM ID once active.
+    pub async fn machine_by_marker(
+        &self,
+        environment: ProxmoxEnvironmentId,
+        marker: &str,
+    ) -> Result<Option<MachineRecord>> {
+        self.query(&format!(
+            "SELECT {MACHINE_COLUMNS} FROM machines WHERE environment_id = ? AND marker = ?"
+        ))
+        .bind(id(environment.0))
+        .bind(marker.to_owned())
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(store_error)?
+        .as_ref()
+        .map(record_from)
+        .transpose()
+    }
+
+    /// Every machine still being created, in every environment.
+    pub async fn pending_machines(&self) -> Result<Vec<MachineRecord>> {
+        self.query(&format!(
+            "SELECT {MACHINE_COLUMNS} FROM machines WHERE status = 'pending' ORDER BY created_at"
+        ))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(store_error)?
+        .iter()
+        .map(record_from)
+        .collect()
     }
 
     /// The user's personal machines.
@@ -382,21 +793,25 @@ impl Database {
         .collect()
     }
 
-    /// Sets the marker of a record, once an admin confirmed which guest it
-    /// is and Lemnos tagged that guest with it.
+    /// Sets the marker of an active record, once an admin confirmed which
+    /// guest it is and Lemnos tagged that guest with it.
     pub async fn set_machine_marker(
         &self,
         environment: ProxmoxEnvironmentId,
         machine: &str,
         marker: &str,
     ) -> Result<()> {
-        self.query("UPDATE machines SET marker = ? WHERE environment_id = ? AND machine = ?")
-            .bind(marker.to_owned())
-            .bind(id(environment.0))
-            .bind(machine.to_owned())
-            .execute(&self.pool)
-            .await
-            .map_err(store_error)?;
+        self.query(
+            "UPDATE machines SET marker = ?, updated_at = ?
+             WHERE environment_id = ? AND machine = ? AND status = 'active'",
+        )
+        .bind(marker.to_owned())
+        .bind(id(now()))
+        .bind(id(environment.0))
+        .bind(machine.to_owned())
+        .execute(&self.pool)
+        .await
+        .map_err(store_error)?;
         Ok(())
     }
 
